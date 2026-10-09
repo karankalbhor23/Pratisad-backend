@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pratisad-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pratisad_user
+      POSTGRES_PASSWORD: pratisad_password
+      POSTGRES_DB: pratisad_db
+    # SECURITY REQUIREMENT:
+    # Port 5432 is strictly bound to 127.0.0.1 (loopback interface) for local developer/Prisma CLI access.
+    # It is NOT exposed on 0.0.0.0 or publicly accessible.
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pratisad_user -d pratisad_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pratisad_net
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pratisad-api
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: 4000
+      CORS_ORIGIN: "http://localhost:3000"
+      # Container-to-container internal database URL using docker network service name 'postgres'
+      DATABASE_URL: "postgresql://pratisad_user:pratisad_password@postgres:5432/pratisad_db?schema=public"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - pratisad_net
+
+volumes:
+  postgres_data:
+    name: pratisad_postgres_data
+
+networks:
+  pratisad_net:
+    name: pratisad_internal_network
+    driver: bridge
