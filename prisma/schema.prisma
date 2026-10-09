@@ -18,3 +18,21 @@ model HealthCheck {
 
   @@map("health_checks")
 }
+
+// M1: Business Domain Model
+// Represents a shop, restaurant, service provider, or other organization using Pratisad.
+model Business {
+  id              String   @id @default(uuid())
+  name            String
+  slug            String   @unique
+  description     String?
+  logoUrl         String?
+  coverImageUrl   String?
+  primaryColor    String?
+  googleReviewUrl String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("businesses")
+}

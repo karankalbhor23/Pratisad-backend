@@ -191,3 +191,319 @@ The API is architected for deployment on a **Hostinger VPS** running Docker:
    - The PostgreSQL database is accessible **only** within the internal Docker bridge network (`pratisad_net`) and is **never** exposed to the public internet.
    - A reverse proxy (e.g. Nginx, Caddy, or Traefik) on the VPS terminates SSL for `api.pratisad.in` and forwards traffic to the `api` container port `4000`.
 2. **Environment**: Production secrets are injected via secure VPS environment files or Docker secrets.
+
+---
+
+## Business Domain and API (M1)
+
+The **Business** domain represents a shop, restaurant, service provider, or other organization using Pratisad. This API provides endpoints for managing business information and retrieving public business data for customer-facing review pages.
+
+### Database Model: Business
+
+| Field | Type | Constraints |
+|---|---|---|
+| `id` | UUID | Primary key, auto-generated |
+| `name` | String | Required, max 200 characters |
+| `slug` | String | Required, unique, 2-50 characters, lowercase alphanumeric with hyphens |
+| `description` | String | Optional, max 1000 characters |
+| `logoUrl` | String | Optional, valid URL, max 500 characters |
+| `coverImageUrl` | String | Optional, valid URL, max 500 characters |
+| `primaryColor` | String | Optional, hex color format (e.g., `#2563EB`) |
+| `googleReviewUrl` | String | Optional, valid URL, max 500 characters |
+| `isActive` | Boolean | Default `true` |
+| `createdAt` | DateTime | Auto-generated on creation |
+| `updatedAt` | DateTime | Auto-updated on modification |
+
+### Applying the Business Migration
+
+After pulling the latest code with the Business model, apply the migration:
+
+```bash
+npx prisma migrate deploy
+```
+
+For development with migration creation:
+
+```bash
+npx prisma migrate dev
+```
+
+### Validation Rules
+
+**Slug Format:**
+- Must contain only lowercase letters (`a-z`), numbers (`0-9`), and hyphens (`-`)
+- Must be between 2 and 50 characters
+- Cannot start or end with a hyphen
+- Cannot contain consecutive hyphens
+- Valid examples: `my-restaurant`, `cafe-123`, `pizza-place`
+- Invalid examples: `MyRestaurant`, `-cafe`, `test--place`, `a`
+
+**URLs:**
+- Must include protocol (`http://` or `https://`)
+- Generic URL validation is applied (does not verify that a URL is a genuine Google review link)
+
+**Primary Color:**
+- Must be a valid 6-digit hex color code
+- Format: `#RRGGBB` (case-insensitive)
+- Examples: `#2563EB`, `#FF5733`, `#000000`
+
+### API Endpoints
+
+#### 1. Create Business
+
+```http
+POST /businesses
+Content-Type: application/json
+```
+
+**Request Body:**
+
+```json
+{
+  "name": "The Great Restaurant",
+  "slug": "the-great-restaurant",
+  "description": "A wonderful place to dine with family and friends",
+  "logoUrl": "https://example.com/logo.png",
+  "coverImageUrl": "https://example.com/cover.jpg",
+  "primaryColor": "#2563EB",
+  "googleReviewUrl": "https://g.page/the-great-restaurant/review",
+  "isActive": true
+}
+```
+
+**Required Fields:** `name`, `slug`
+
+**Response (201 Created):**
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "The Great Restaurant",
+  "slug": "the-great-restaurant",
+  "description": "A wonderful place to dine with family and friends",
+  "logoUrl": "https://example.com/logo.png",
+  "coverImageUrl": "https://example.com/cover.jpg",
+  "primaryColor": "#2563EB",
+  "googleReviewUrl": "https://g.page/the-great-restaurant/review",
+  "isActive": true,
+  "createdAt": "2026-10-09T10:30:00.000Z",
+  "updatedAt": "2026-10-09T10:30:00.000Z"
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request**: Invalid request body, validation failure
+- **409 Conflict**: Slug already exists
+
+---
+
+#### 2. List Businesses (Paginated)
+
+```http
+GET /businesses?page=1&limit=20
+```
+
+**Query Parameters:**
+
+| Parameter | Type | Default | Constraints |
+|---|---|---|---|
+| `page` | Integer | `1` | Min: 1 |
+| `limit` | Integer | `20` | Min: 1, Max: 100 |
+
+**Response (200 OK):**
+
+```json
+{
+  "data": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "name": "The Great Restaurant",
+      "slug": "the-great-restaurant",
+      "description": "A wonderful place to dine",
+      "logoUrl": "https://example.com/logo.png",
+      "coverImageUrl": "https://example.com/cover.jpg",
+      "primaryColor": "#2563EB",
+      "googleReviewUrl": "https://g.page/the-great-restaurant/review",
+      "isActive": true,
+      "createdAt": "2026-10-09T10:30:00.000Z",
+      "updatedAt": "2026-10-09T10:30:00.000Z"
+    }
+  ],
+  "page": 1,
+  "limit": 20,
+  "total": 42,
+  "totalPages": 3
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request**: Invalid pagination parameters (e.g., page < 1, limit > 100)
+
+---
+
+#### 3. Get Business by ID
+
+```http
+GET /businesses/:id
+```
+
+**Path Parameters:**
+
+- `id`: Business UUID
+
+**Response (200 OK):**
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "The Great Restaurant",
+  "slug": "the-great-restaurant",
+  "description": "A wonderful place to dine",
+  "logoUrl": "https://example.com/logo.png",
+  "coverImageUrl": "https://example.com/cover.jpg",
+  "primaryColor": "#2563EB",
+  "googleReviewUrl": "https://g.page/the-great-restaurant/review",
+  "isActive": true,
+  "createdAt": "2026-10-09T10:30:00.000Z",
+  "updatedAt": "2026-10-09T10:30:00.000Z"
+}
+```
+
+**Error Responses:**
+
+- **404 Not Found**: Business does not exist
+
+---
+
+#### 4. Update Business
+
+```http
+PATCH /businesses/:id
+Content-Type: application/json
+```
+
+**Path Parameters:**
+
+- `id`: Business UUID
+
+**Request Body (all fields optional):**
+
+```json
+{
+  "name": "Updated Restaurant Name",
+  "description": "Updated description",
+  "primaryColor": "#FF5733"
+}
+```
+
+**Response (200 OK):**
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "Updated Restaurant Name",
+  "slug": "the-great-restaurant",
+  "description": "Updated description",
+  "logoUrl": "https://example.com/logo.png",
+  "coverImageUrl": "https://example.com/cover.jpg",
+  "primaryColor": "#FF5733",
+  "googleReviewUrl": "https://g.page/the-great-restaurant/review",
+  "isActive": true,
+  "createdAt": "2026-10-09T10:30:00.000Z",
+  "updatedAt": "2026-10-09T14:25:00.000Z"
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request**: Invalid request body or validation failure
+- **404 Not Found**: Business does not exist
+- **409 Conflict**: Slug already exists (when updating slug)
+
+---
+
+#### 5. Get Public Business by Slug
+
+```http
+GET /businesses/by-slug/:slug
+```
+
+**Path Parameters:**
+
+- `slug`: Business slug (e.g., `the-great-restaurant`)
+
+**Purpose:** This endpoint is designed for customer-facing review pages at `review.pratisad.in/r/{slug}`. It returns only public-facing information and filters for active businesses only.
+
+**Response (200 OK):**
+
+```json
+{
+  "name": "The Great Restaurant",
+  "slug": "the-great-restaurant",
+  "description": "A wonderful place to dine with family and friends",
+  "logoUrl": "https://example.com/logo.png",
+  "coverImageUrl": "https://example.com/cover.jpg",
+  "primaryColor": "#2563EB",
+  "googleReviewUrl": "https://g.page/the-great-restaurant/review"
+}
+```
+
+**Important Notes:**
+
+- Only returns businesses where `isActive = true`
+- Does **not** include internal fields: `id`, `isActive`, `createdAt`, `updatedAt`
+- Returns only the seven approved public fields listed above
+
+**Error Responses:**
+
+- **404 Not Found**: Business does not exist, is inactive, or slug not found
+
+---
+
+### Authentication and Security Limitations
+
+**⚠️ IMPORTANT:** The Business management endpoints (`POST`, `PATCH`, `GET /businesses`, `GET /businesses/:id`) do **not** currently implement authentication or authorization.
+
+**Security Implications:**
+
+1. These endpoints are **not safe for unrestricted public production access** without authentication.
+2. Business data can be created, viewed, and modified by anyone who can reach the API.
+3. The public lookup endpoint (`GET /businesses/by-slug/:slug`) is intended for customer-facing use and returns only limited, non-sensitive data for active businesses.
+
+**Planned Resolution:**
+
+A future milestone (M2 or later) will implement:
+- Business owner authentication (e.g., JWT-based auth)
+- Role-based access control (RBAC)
+- Business-level isolation (users can only manage their own businesses)
+- API rate limiting and additional security hardening
+
+**Current Deployment Recommendation:**
+
+- Do not expose management endpoints to the public internet without additional security measures (e.g., IP allowlisting, VPN, or reverse proxy authentication).
+- The public lookup endpoint can be safely exposed for customer-facing review page functionality.
+
+---
+
+### Error Response Format
+
+All error responses follow a consistent structure:
+
+```json
+{
+  "statusCode": 400,
+  "message": ["Descriptive error message"],
+  "error": "Bad Request"
+}
+```
+
+**Common HTTP Status Codes:**
+
+- `400 Bad Request`: Validation failure, malformed input
+- `404 Not Found`: Resource does not exist
+- `409 Conflict`: Duplicate slug or other unique constraint violation
+- `500 Internal Server Error`: Unexpected server error
+
+---
