@@ -12,6 +12,7 @@ yarn-error.log*
 # Environment files
 .env*
 !.env.example
+!.env.vps.example
 
 # IDE & Editor files
 .idea/

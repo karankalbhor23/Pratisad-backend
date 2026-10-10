@@ -8,6 +8,7 @@ import {
   MinLength,
   IsNotEmpty,
 } from 'class-validator';
+import { IsGoogleReviewUrl } from '../validators/is-google-review-url.validator';
 
 export class UpdateBusinessDto {
   @IsOptional()
@@ -57,6 +58,7 @@ export class UpdateBusinessDto {
     { require_protocol: true },
     { message: 'googleReviewUrl must be a valid URL' },
   )
+  @IsGoogleReviewUrl()
   @MaxLength(500)
   googleReviewUrl?: string;
 

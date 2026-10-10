@@ -37,7 +37,9 @@ cp .env.example .env
 | Variable | Description | Default / Example |
 |---|---|---|
 | `PORT` | HTTP port on which the NestJS API listens | `4000` |
-| `CORS_ORIGIN` | Allowed CORS origins (single URL or comma-separated list) | `http://localhost:3000` |
+| `CORS_ORIGIN` | Allowed CORS origins (single URL or comma-separated list) | `http://localhost:3000` (prod: `https://pratisad.scaleopal.com`) |
+| `PLATFORM_ADMIN_EMAIL` | Email allowlisted as platform admin (seeded via `npm run db:seed`) | `admin@example.com` |
+| `CLERK_SECRET_KEY` | Clerk secret key (same app as pratisad-web) | From Clerk Dashboard |
 | `DATABASE_URL` | PostgreSQL connection string | See connection details below |
 
 #### Database Connection Strings
@@ -189,8 +191,11 @@ The API is architected for deployment on a **Hostinger VPS** running Docker:
 1. **Architecture**:
    - The VPS runs Docker Compose managing the `api` and `postgres` containers.
    - The PostgreSQL database is accessible **only** within the internal Docker bridge network (`pratisad_net`) and is **never** exposed to the public internet.
-   - A reverse proxy (e.g. Nginx, Caddy, or Traefik) on the VPS terminates SSL for `api.pratisad.in` and forwards traffic to the `api` container port `4000`.
+   - A reverse proxy (e.g. Nginx, Caddy, or Traefik) on the VPS terminates SSL for `api.pratisad.scaleopal.com` and forwards traffic to `127.0.0.1:4000`.
 2. **Environment**: Production secrets are injected via secure VPS environment files or Docker secrets.
+3. **Scaleopal VPS** (shared Postgres + NPM, port 4002): `docker compose -f docker-compose.vps.yml up -d --build`
+4. **Deploy updates**: `git pull && ./scripts/deploy-vps.sh` — same pattern as LMS
+5. See [DEPLOYMENT.md](./DEPLOYMENT.md) for GitHub clone, NPM, Cloudflare, and first-time setup
 
 ---
 
@@ -434,7 +439,7 @@ GET /businesses/by-slug/:slug
 
 - `slug`: Business slug (e.g., `the-great-restaurant`)
 
-**Purpose:** This endpoint is designed for customer-facing review pages at `review.pratisad.in/r/{slug}`. It returns only public-facing information and filters for active businesses only.
+**Purpose:** This endpoint is designed for customer-facing review pages at `https://pratisad.scaleopal.com/r/{slug}`. It returns only public-facing information and filters for active businesses only.
 
 **Response (200 OK):**
 
@@ -507,3 +512,15 @@ All error responses follow a consistent structure:
 - `500 Internal Server Error`: Unexpected server error
 
 ---
+
+## Review Drafts
+
+`POST /review-drafts` creates an editable draft from customer-provided feedback. It accepts `businessSlug`, an integer `rating` from 1 to 5, one to ten keyword strings, and an optional comment up to 1000 characters. A successful response is `{ "draft": "..." }`.
+
+Set `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` (an OpenRouter-supported model ID) in the server environment. Tests mock `fetch`, so they do not need a real API key or provider request.
+
+The endpoint does not store feedback or drafts. It uses an in-memory limit of 10 requests per IP per minute; this only protects a single application instance. Production deployments should apply shared rate limiting at the edge or with a distributed store.
+
+## Platform Admin Authorization
+
+Business-management routes (`POST/PATCH/GET /businesses`, `GET /auth/me`) require a valid Clerk JWT and an email in the `platform_admins` table (`isActive: true`). Seed the allowlist with `PLATFORM_ADMIN_EMAIL` and `npm run db:seed`. The frontend enforces `metadata.role === "platform_admin"` via Clerk session claims.

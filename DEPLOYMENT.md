@@ -1,0 +1,193 @@
+# Deploying Pratisad API (Scaleopal VPS)
+
+Production URLs:
+
+| Service | URL |
+|---------|-----|
+| Frontend | `https://pratisad.scaleopal.com` (Vercel) |
+| API | `https://api.pratisad.scaleopal.com` (VPS + NPM) |
+
+This matches your **LMS workflow**: GitHub repo on the VPS → `git pull` → `docker compose` rebuild.
+
+---
+
+## Architecture on your VPS
+
+```text
+api.pratisad.scaleopal.com
+        ↓
+Nginx Proxy Manager (:443)     /root/stack/
+        ↓
+127.0.0.1:4002  →  pratisad-api container
+                           ↓
+                    postgres:5432 / pratisad_db
+                    (shared stack_scaleopal_network)
+```
+
+Host ports already used: **4000** (LMS prod), **4001** (LMS staging). Pratisad uses **4002**.
+
+---
+
+## One-time VPS setup
+
+### 1. GitHub access on the VPS
+
+Same as LMS — either HTTPS + token or SSH deploy key.
+
+**SSH deploy key (recommended):**
+
+```bash
+ssh-keygen -t ed25519 -C "vps-pratisad-api" -f ~/.ssh/id_ed25519_pratisad -N ""
+cat ~/.ssh/id_ed25519_pratisad.pub
+```
+
+Add the public key in GitHub → repo → **Settings → Deploy keys** (read-only is enough).
+
+```bash
+# ~/.ssh/config snippet (optional)
+Host github.com-pratisad
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/id_ed25519_pratisad
+```
+
+### 2. Clone the repo
+
+```bash
+cd /root
+git clone git@github.com:YOUR_ORG/pratisad-api.git pratisad-api
+cd pratisad-api
+```
+
+### 3. Environment file
+
+```bash
+cp .env.vps.example .env
+nano .env
+```
+
+Use the **same postgres password** as `/root/stack/.env` (`POSTGRES_PASSWORD`).
+
+Required values:
+
+```env
+CORS_ORIGIN=https://pratisad.scaleopal.com
+DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@postgres:5432/pratisad_db?schema=public
+PLATFORM_ADMIN_EMAIL=your-admin@scaleopal.com
+CLERK_SECRET_KEY=sk_live_...
+OPENROUTER_API_KEY=...
+OPENROUTER_MODEL=...
+E2E_AUTH_BYPASS=false
+```
+
+### 4. Create database on shared Postgres
+
+```bash
+chmod +x scripts/init-vps-db.sh scripts/deploy-vps.sh
+./scripts/init-vps-db.sh
+```
+
+### 5. First deploy
+
+```bash
+docker compose -f docker-compose.vps.yml up -d --build
+```
+
+Migrations run automatically on container start (`docker-entrypoint.sh`).
+
+### 6. Seed platform admin (once)
+
+```bash
+docker compose -f docker-compose.vps.yml --profile tools run --rm seed
+```
+
+### 7. Nginx Proxy Manager
+
+Open `http://72.62.163.10:81` → **Proxy Hosts** → **Add**:
+
+| Field | Value |
+|-------|--------|
+| Domain | `api.pratisad.scaleopal.com` |
+| Scheme | `http` |
+| Forward hostname | `72.62.163.10` |
+| Forward port | `4002` |
+| Block common exploits | On |
+| Websockets | Off |
+| SSL | Request new Let's Encrypt certificate |
+
+### 8. Cloudflare DNS
+
+| Type | Name | Content | Proxy |
+|------|------|---------|-------|
+| A | `api.pratisad` | `72.62.163.10` | DNS only (grey) |
+
+### 9. Verify
+
+```bash
+curl http://127.0.0.1:4002/health
+curl https://api.pratisad.scaleopal.com/health
+```
+
+---
+
+## Day-to-day deploy (after code changes)
+
+On the VPS:
+
+```bash
+cd /root/pratisad-api
+./scripts/deploy-vps.sh
+```
+
+Or manually (same as LMS):
+
+```bash
+cd /root/pratisad-api
+git pull origin main
+docker compose -f docker-compose.vps.yml up -d --build
+docker compose -f docker-compose.vps.yml logs -f --tail=50 pratisad-api
+```
+
+Rebuild without pull:
+
+```bash
+./scripts/deploy-vps.sh --no-pull
+```
+
+---
+
+## Useful commands
+
+```bash
+# Logs
+docker compose -f docker-compose.vps.yml logs -f pratisad-api
+
+# Restart without rebuild
+docker compose -f docker-compose.vps.yml restart pratisad-api
+
+# Stop
+docker compose -f docker-compose.vps.yml down
+
+# Re-run migrations + seed
+docker compose -f docker-compose.vps.yml up -d --build
+docker compose -f docker-compose.vps.yml --profile tools run --rm seed
+```
+
+---
+
+## Clerk alignment
+
+- Same **production** Clerk app as Vercel frontend.
+- `CLERK_SECRET_KEY` must match Vercel.
+- `PLATFORM_ADMIN_EMAIL` must match Clerk admin user email.
+- Session token claims: `metadata` + `primary_email_address`.
+
+---
+
+## Security checklist
+
+- [ ] `.env` never committed to Git
+- [ ] `E2E_AUTH_BYPASS=false`
+- [ ] API on `127.0.0.1:4002` only (NPM handles public HTTPS)
+- [ ] Clerk sign-up disabled
+- [ ] Production Clerk keys (`sk_live_`)

@@ -8,6 +8,7 @@ import {
   IsBoolean,
   MinLength,
 } from 'class-validator';
+import { IsGoogleReviewUrl } from '../validators/is-google-review-url.validator';
 
 export class CreateBusinessDto {
   @IsString()
@@ -55,6 +56,7 @@ export class CreateBusinessDto {
     { require_protocol: true },
     { message: 'googleReviewUrl must be a valid URL' },
   )
+  @IsGoogleReviewUrl()
   @MaxLength(500)
   googleReviewUrl?: string;
 

@@ -36,3 +36,14 @@ model Business {
 
   @@map("businesses")
 }
+
+// Development bootstrap identity only. It is not an authentication mechanism.
+model PlatformAdmin {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("platform_admins")
+}

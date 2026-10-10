@@ -8,7 +8,9 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
+import { PlatformAdminGuard } from '../auth/platform-admin.guard';
 import { BusinessService } from './business.service';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { UpdateBusinessDto } from './dto/update-business.dto';
@@ -25,6 +27,7 @@ export class BusinessController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @UseGuards(PlatformAdminGuard)
   create(
     @Body() createBusinessDto: CreateBusinessDto,
   ): Promise<BusinessResponseDto> {
@@ -33,6 +36,7 @@ export class BusinessController {
 
   @Get()
   @HttpCode(HttpStatus.OK)
+  @UseGuards(PlatformAdminGuard)
   findAll(
     @Query() query: ListBusinessesQueryDto,
   ): Promise<PaginatedBusinessResponseDto> {
@@ -49,12 +53,14 @@ export class BusinessController {
 
   @Get(':id')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(PlatformAdminGuard)
   findOne(@Param('id') id: string): Promise<BusinessResponseDto> {
     return this.businessService.findOne(id);
   }
 
   @Patch(':id')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(PlatformAdminGuard)
   update(
     @Param('id') id: string,
     @Body() updateBusinessDto: UpdateBusinessDto,

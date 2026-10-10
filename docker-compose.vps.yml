@@ -1,0 +1,52 @@
+# ============================================================
+# docker-compose.vps.yml — Scaleopal VPS (shared Postgres + NPM)
+#
+# Matches the LMS deploy pattern in /root/scaleopal-labs:
+#   - git pull → docker compose -f docker-compose.vps.yml up -d --build
+#   - Host port 4002 → container 4000 (4000/4001 used by LMS)
+#   - Joins external network stack_scaleopal_network (postgres container)
+#
+# First-time setup: see DEPLOYMENT.md
+# ============================================================
+
+services:
+  pratisad-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pratisad-api
+    restart: always
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      RUN_MIGRATIONS: "true"
+    ports:
+      # NPM forwards api.pratisad.scaleopal.com → host:4002
+      - "127.0.0.1:4002:4000"
+    networks:
+      - stack_scaleopal_network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # One-off admin seed (dev tooling in builder image):
+  #   docker compose -f docker-compose.vps.yml --profile tools run --rm seed
+  seed:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    env_file:
+      - .env
+    networks:
+      - stack_scaleopal_network
+    profiles: ["tools"]
+    command: npx prisma db seed
+
+networks:
+  stack_scaleopal_network:
+    external: true

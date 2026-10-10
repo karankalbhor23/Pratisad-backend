@@ -15,6 +15,7 @@ describe('Business API (e2e)', () => {
   const createdBusinessIds: string[] = [];
 
   beforeAll(async () => {
+    process.env.E2E_AUTH_BYPASS = 'true';
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();

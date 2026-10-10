@@ -29,12 +29,17 @@ services:
     container_name: pratisad-api
     restart: unless-stopped
     ports:
-      - "4000:4000"
+      - "127.0.0.1:4000:4000"
     environment:
       PORT: 4000
-      CORS_ORIGIN: "http://localhost:3000"
-      # Container-to-container internal database URL using docker network service name 'postgres'
+      NODE_ENV: production
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
       DATABASE_URL: "postgresql://pratisad_user:pratisad_password@postgres:5432/pratisad_db?schema=public"
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL}
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
+      PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL}
+      E2E_AUTH_BYPASS: "false"
     depends_on:
       postgres:
         condition: service_healthy

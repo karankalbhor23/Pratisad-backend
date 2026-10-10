@@ -42,13 +42,18 @@ RUN npm install --omit=dev
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 
 # Copy compiled application code
 COPY --from=builder /app/dist ./dist
+
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Create and switch to non-root user
 USER node
 
 EXPOSE 4000
 
-CMD ["node", "dist/main.js"]
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["node", "dist/src/main.js"]
