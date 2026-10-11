@@ -6,3 +6,7 @@ export type ClerkAuthedRequest = Request & {
   platformAdminEmail?: string;
   businessId?: string;
 };
+
+export function asClerkAuthedRequest(request: Request): ClerkAuthedRequest {
+  return request as ClerkAuthedRequest;
+}

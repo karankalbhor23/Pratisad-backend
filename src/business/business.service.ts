@@ -9,6 +9,7 @@ import { CreateBusinessDto } from './dto/create-business.dto';
 import { UpdateBusinessDto } from './dto/update-business.dto';
 import { ListBusinessesQueryDto } from './dto/list-businesses-query.dto';
 import {
+  BusinessListItemDto,
   BusinessResponseDto,
   PublicBusinessResponseDto,
   PaginatedBusinessResponseDto,
@@ -84,14 +85,17 @@ export class BusinessService {
       rows.map((row) => row.id),
     );
 
-    const data = rows.map(({ member, ...row }) => ({
-      ...row,
-      aiDraftCountMonth: monthCounts.get(row.id) ?? 0,
-      portalUserStatus:
+    const data: BusinessListItemDto[] = rows.map(({ member, ...row }) => {
+      const portalUserStatus: BusinessListItemDto['portalUserStatus'] =
         !member || member.status === BusinessMemberStatus.revoked
           ? 'none'
-          : member.status,
-    }));
+          : member.status;
+      return {
+        ...row,
+        aiDraftCountMonth: monthCounts.get(row.id) ?? 0,
+        portalUserStatus,
+      };
+    });
 
     const totalPages = Math.ceil(total / limit);
 

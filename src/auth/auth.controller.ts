@@ -6,8 +6,9 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import type * as Express from 'express';
 import { AuthService } from './auth.service';
-import { ClerkAuthedRequest } from './authed-request.types';
+import { asClerkAuthedRequest } from './authed-request.types';
 import { ClerkAuthGuard } from './clerk-auth.guard';
 
 @Controller('auth')
@@ -17,10 +18,11 @@ export class AuthController {
   @Get('me')
   @HttpCode(HttpStatus.OK)
   @UseGuards(ClerkAuthGuard)
-  me(@Req() request: ClerkAuthedRequest) {
+  me(@Req() request: Express.Request) {
+    const authed = asClerkAuthedRequest(request);
     return this.authService.resolveMe(
-      request.clerkEmail ?? '',
-      request.clerkUserId,
+      authed.clerkEmail ?? '',
+      authed.clerkUserId,
     );
   }
 }
