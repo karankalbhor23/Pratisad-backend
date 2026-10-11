@@ -75,6 +75,8 @@ describe('ReviewDraftsService', () => {
     expect(body.messages[0]).toEqual(
       expect.objectContaining({ role: 'system', content: expect.any(String) }),
     );
+    expect(body.messages[0].content).toContain('Category, Setting, Vocabulary');
+    expect(body.messages[0].content).toContain('prefer omitting locality');
     expect(body.messages[1].role).toBe('user');
     expect(body.messages[1].content).toContain('Business: Test Business');
     expect(body.messages[1].content).toContain(
@@ -85,6 +87,7 @@ describe('ReviewDraftsService', () => {
       'Experience themes: Poor experience',
     );
     expect(body.messages[1].content).toContain('Customer comment: Too slow.');
+    expect(body.messages[1].content).toContain('Draft note:');
   });
 
   it('rejects keywords that are not allowed for the rating band', async () => {

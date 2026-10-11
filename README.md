@@ -211,7 +211,7 @@ The **Business** domain represents a shop, restaurant, service provider, or othe
 | `name` | String | Required, max 200 characters |
 | `slug` | String | Required, unique, 2-50 characters, lowercase alphanumeric with hyphens |
 | `description` | String | Optional, max 1000 characters; customer-facing copy on `/r/{slug}` |
-| `localContext` | String | Optional, max 2000 characters; **AI review-draft prompt only** (not returned on public by-slug) |
+| `localContext` | String | Optional, max 2000 characters; **AI review-draft prompt only** (not returned on public by-slug). Recommended format: `Category:`, `Setting:`, optional `Area:`, and `Vocabulary:` lines (admin UI can generate this). |
 | `keywordsRatingLow` | String[] | Optional, max 30 items × 60 chars; experience chips for ratings **1–3** (empty → platform defaults) |
 | `keywordsRatingHigh` | String[] | Optional, max 30 items × 60 chars; experience chips for ratings **4–5** (empty → platform defaults) |
 | `logoUrl` | String | Optional, valid URL, max 500 characters |
