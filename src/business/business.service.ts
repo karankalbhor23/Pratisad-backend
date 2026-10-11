@@ -13,14 +13,18 @@ import {
   PublicBusinessResponseDto,
   PaginatedBusinessResponseDto,
 } from './dto/business-response.dto';
-import { Prisma } from '@prisma/client';
+import { BusinessMemberStatus, Prisma } from '@prisma/client';
+import { AiUsageService } from './ai-usage.service';
 import { normalizeKeywordList } from './keyword-options.util';
 
 @Injectable()
 export class BusinessService {
   private readonly logger = new Logger(BusinessService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly aiUsage: AiUsageService,
+  ) {}
 
   private normalizeBusinessWriteData<
     T extends CreateBusinessDto | UpdateBusinessDto,
@@ -66,14 +70,28 @@ export class BusinessService {
     const limit = query.limit ?? 20;
     const skip = (page - 1) * limit;
 
-    const [data, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       this.prisma.business.findMany({
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
+        include: { member: { select: { status: true } } },
       }),
       this.prisma.business.count(),
     ]);
+
+    const monthCounts = await this.aiUsage.monthCountsByBusinessIds(
+      rows.map((row) => row.id),
+    );
+
+    const data = rows.map(({ member, ...row }) => ({
+      ...row,
+      aiDraftCountMonth: monthCounts.get(row.id) ?? 0,
+      portalUserStatus:
+        !member || member.status === BusinessMemberStatus.revoked
+          ? 'none'
+          : member.status,
+    }));
 
     const totalPages = Math.ceil(total / limit);
 

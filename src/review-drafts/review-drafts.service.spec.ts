@@ -13,9 +13,14 @@ import { ReviewDraftsService } from './review-drafts.service';
 describe('ReviewDraftsService', () => {
   const businessService = { findBySlug: jest.fn() };
   const config = { get: jest.fn() };
+  const feedbackRecord = {
+    recordAiUsage: jest.fn().mockResolvedValue(undefined),
+    recordSubmission: jest.fn().mockResolvedValue({ id: 'feedback-id' }),
+  };
   const service = new ReviewDraftsService(
     businessService as unknown as BusinessService,
     config as unknown as ConfigService,
+    feedbackRecord as never,
   );
   const input = {
     businessSlug: 'test-business',
@@ -49,6 +54,8 @@ describe('ReviewDraftsService', () => {
     await expect(service.create(input)).resolves.toEqual({
       draft: 'Draft text.',
     });
+    expect(feedbackRecord.recordAiUsage).toHaveBeenCalled();
+    expect(feedbackRecord.recordSubmission).toHaveBeenCalled();
     expect(businessService.findBySlug).toHaveBeenCalledWith(
       'test-business',
       true,

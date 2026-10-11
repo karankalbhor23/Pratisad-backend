@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { BusinessModule } from '../business/business.module';
-import { ReviewDraftThrottleGuard } from './review-draft-throttle.guard';
+import { IpThrottleGuard } from '../common/ip-throttle.guard';
+import { FeedbackModule } from '../feedback/feedback.module';
 import { ReviewDraftsController } from './review-drafts.controller';
 import { ReviewDraftsService } from './review-drafts.service';
 
 @Module({
-  imports: [BusinessModule],
+  imports: [BusinessModule, FeedbackModule],
   controllers: [ReviewDraftsController],
-  providers: [ReviewDraftsService, ReviewDraftThrottleGuard],
+  providers: [ReviewDraftsService, IpThrottleGuard],
 })
 export class ReviewDraftsModule {}

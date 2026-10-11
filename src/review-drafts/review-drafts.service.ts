@@ -1,20 +1,19 @@
 import {
   BadGatewayException,
-  BadRequestException,
   GatewayTimeoutException,
   HttpException,
   HttpStatus,
   Injectable,
-  NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { bandForRating } from '../business/experience-keywords.constants';
-import {
-  allowedKeywordSet,
-  validateSubmittedKeywords,
-} from '../business/keyword-options.util';
+import { FeedbackSource } from '@prisma/client';
 import { BusinessService } from '../business/business.service';
+import {
+  assertKeywordsForRating,
+  resolveActiveBusinessForFeedback,
+} from '../feedback/customer-feedback.validation';
+import { FeedbackRecordService } from '../feedback/feedback-record.service';
 import { CreateReviewDraftDto } from './dto/create-review-draft.dto';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
@@ -85,22 +84,15 @@ export class ReviewDraftsService {
   constructor(
     private readonly businessService: BusinessService,
     private readonly config: ConfigService,
+    private readonly feedbackRecord: FeedbackRecordService,
   ) {}
 
   async create(input: CreateReviewDraftDto): Promise<{ draft: string }> {
-    const business = await this.businessService.findBySlug(
+    const business = await resolveActiveBusinessForFeedback(
+      this.businessService,
       input.businessSlug,
-      true,
     );
-    if (!business) throw new NotFoundException('Business not found');
-
-    const band = bandForRating(input.rating);
-    const allowed = allowedKeywordSet(business, band);
-    if (!validateSubmittedKeywords(input.keywords, allowed)) {
-      throw new BadRequestException(
-        'Invalid experience keywords for this rating.',
-      );
-    }
+    assertKeywordsForRating(business, input.rating, input.keywords);
 
     const apiKey = this.config.get<string>('OPENROUTER_API_KEY');
     const model = this.config.get<string>('OPENROUTER_MODEL');
@@ -171,6 +163,16 @@ export class ReviewDraftsService {
       throw new BadGatewayException(
         'Review drafting returned an invalid response.',
       );
+
+    await this.feedbackRecord.recordAiUsage(business.id, model, true);
+    await this.feedbackRecord.recordSubmission({
+      businessId: business.id,
+      rating: input.rating,
+      keywords: input.keywords,
+      comment: input.comment,
+      source: FeedbackSource.draft_generated,
+    });
+
     return { draft: draft.trim() };
   }
 }

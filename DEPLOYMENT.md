@@ -75,10 +75,14 @@ CORS_ORIGIN=https://pratisad.scaleopal.com
 DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@postgres:5432/pratisad_db?schema=public
 PLATFORM_ADMIN_EMAIL=your-admin@scaleopal.com
 CLERK_SECRET_KEY=sk_live_...
+CLERK_WEBHOOK_SIGNING_SECRET=whsec_...
+WEB_APP_ORIGIN=https://pratisad.scaleopal.com
 OPENROUTER_API_KEY=...
 OPENROUTER_MODEL=...
 E2E_AUTH_BYPASS=false
 ```
+
+Register a Clerk webhook pointing to `https://api.pratisad.scaleopal.com/webhooks/clerk` with event **user.created** (activates invited business portal users).
 
 ### 4. Create database on shared Postgres
 

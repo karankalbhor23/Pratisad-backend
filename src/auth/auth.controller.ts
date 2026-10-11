@@ -1,18 +1,26 @@
-import { Controller, Get, HttpCode, HttpStatus, Req, UseGuards } from '@nestjs/common';
-import { Request } from 'express';
-import { PlatformAdminGuard } from './platform-admin.guard';
-
-type AuthedRequest = Request & { platformAdminEmail?: string };
+import {
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import { AuthService } from './auth.service';
+import { ClerkAuthedRequest } from './authed-request.types';
+import { ClerkAuthGuard } from './clerk-auth.guard';
 
 @Controller('auth')
 export class AuthController {
+  constructor(private readonly authService: AuthService) {}
+
   @Get('me')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(PlatformAdminGuard)
-  me(@Req() request: AuthedRequest): { email: string; isPlatformAdmin: true } {
-    return {
-      email: request.platformAdminEmail ?? '',
-      isPlatformAdmin: true,
-    };
+  @UseGuards(ClerkAuthGuard)
+  me(@Req() request: ClerkAuthedRequest) {
+    return this.authService.resolveMe(
+      request.clerkEmail ?? '',
+      request.clerkUserId,
+    );
   }
 }

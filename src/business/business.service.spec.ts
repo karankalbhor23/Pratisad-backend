@@ -1,11 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BusinessService } from './business.service';
+import { AiUsageService } from './ai-usage.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotFoundException, ConflictException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 describe('BusinessService', () => {
   let service: BusinessService;
+
+  const mockAiUsageService = {
+    monthCountsByBusinessIds: jest.fn().mockResolvedValue(new Map()),
+  };
 
   const mockPrismaService = {
     business: {
@@ -42,6 +47,10 @@ describe('BusinessService', () => {
         {
           provide: PrismaService,
           useValue: mockPrismaService,
+        },
+        {
+          provide: AiUsageService,
+          useValue: mockAiUsageService,
         },
       ],
     }).compile();
@@ -101,24 +110,36 @@ describe('BusinessService', () => {
 
   describe('findAll', () => {
     it('should return paginated businesses with correct metadata', async () => {
-      const businesses = [mockBusiness, { ...mockBusiness, id: 'another-id' }];
+      const businesses = [
+        { ...mockBusiness, member: null },
+        { ...mockBusiness, id: 'another-id', member: { status: 'active' } },
+      ];
       mockPrismaService.business.findMany.mockResolvedValue(businesses);
       mockPrismaService.business.count.mockResolvedValue(42);
+      mockAiUsageService.monthCountsByBusinessIds.mockResolvedValue(
+        new Map([[mockBusiness.id, 3]]),
+      );
 
       const query = { page: 2, limit: 10 };
       const result = await service.findAll(query);
 
-      expect(result).toEqual({
-        data: businesses,
-        page: 2,
-        limit: 10,
-        total: 42,
-        totalPages: 5, // ceil(42 / 10)
+      expect(result.page).toBe(2);
+      expect(result.limit).toBe(10);
+      expect(result.total).toBe(42);
+      expect(result.totalPages).toBe(5);
+      expect(result.data[0]).toMatchObject({
+        id: mockBusiness.id,
+        aiDraftCountMonth: 3,
+        portalUserStatus: 'none',
+      });
+      expect(result.data[1]).toMatchObject({
+        portalUserStatus: 'active',
       });
       expect(mockPrismaService.business.findMany).toHaveBeenCalledWith({
-        skip: 10, // (page 2 - 1) * limit 10
+        skip: 10,
         take: 10,
         orderBy: { createdAt: 'desc' },
+        include: { member: { select: { status: true } } },
       });
     });
 
@@ -139,6 +160,7 @@ describe('BusinessService', () => {
         skip: 0,
         take: 20,
         orderBy: { createdAt: 'desc' },
+        include: { member: { select: { status: true } } },
       });
     });
   });

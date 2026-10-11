@@ -526,4 +526,8 @@ The endpoint does not store feedback or drafts. It uses an in-memory limit of 10
 
 ## Platform Admin Authorization
 
-Business-management routes (`POST/PATCH/GET /businesses`, `GET /auth/me`) require a valid Clerk JWT and an email in the `platform_admins` table (`isActive: true`). Seed the allowlist with `PLATFORM_ADMIN_EMAIL` and `npm run db:seed`. The frontend enforces `metadata.role === "platform_admin"` via Clerk session claims.
+`GET /auth/me` accepts any signed-in Clerk user and returns `platform_admin` or `business_user` (from `platform_admins` or an active `business_members` row).
+
+`POST /feedback` stores private customer feedback for ratings 1–3 only. `POST /review-drafts` still generates AI drafts and records usage plus a feedback row for insights.
+
+Business-management routes (`POST/PATCH/GET /businesses`, portal-user invite, usage) require platform admin. `GET /portal/*` requires an active business member. Seed platform admins with `PLATFORM_ADMIN_EMAIL` and `npm run db:seed`.

@@ -5,6 +5,9 @@ import { PrismaModule } from './prisma/prisma.module';
 import { BusinessModule } from './business/business.module';
 import { ReviewDraftsModule } from './review-drafts/review-drafts.module';
 import { AuthModule } from './auth/auth.module';
+import { FeedbackModule } from './feedback/feedback.module';
+import { PortalModule } from './portal/portal.module';
+import { ClerkWebhooksModule } from './clerk-webhooks/clerk-webhooks.module';
 
 @Module({
   imports: [
@@ -16,7 +19,10 @@ import { AuthModule } from './auth/auth.module';
     HealthModule,
     AuthModule,
     BusinessModule,
+    FeedbackModule,
     ReviewDraftsModule,
+    PortalModule,
+    ClerkWebhooksModule,
   ],
 })
 export class AppModule {}

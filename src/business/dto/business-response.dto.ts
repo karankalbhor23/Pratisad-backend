@@ -1,7 +1,12 @@
-import { Business } from '@prisma/client';
+import { Business, BusinessMemberStatus } from '@prisma/client';
 
 // Full business response (for management endpoints)
 export type BusinessResponseDto = Business;
+
+export type BusinessListItemDto = Business & {
+  aiDraftCountMonth: number;
+  portalUserStatus: 'none' | BusinessMemberStatus;
+};
 
 // Public business response (for customer-facing pages)
 export interface PublicBusinessResponseDto {
@@ -18,7 +23,7 @@ export interface PublicBusinessResponseDto {
 
 // Paginated list response
 export interface PaginatedBusinessResponseDto {
-  data: BusinessResponseDto[];
+  data: BusinessListItemDto[];
   page: number;
   limit: number;
   total: number;

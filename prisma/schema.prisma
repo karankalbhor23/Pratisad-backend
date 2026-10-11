@@ -22,20 +22,23 @@ model HealthCheck {
 // M1: Business Domain Model
 // Represents a shop, restaurant, service provider, or other organization using Pratisad.
 model Business {
-  id              String   @id @default(uuid())
-  name            String
-  slug            String   @unique
-  description     String?
-  localContext    String?  @db.Text
-  keywordsRatingLow  String[] @default([])
-  keywordsRatingHigh String[] @default([])
-  logoUrl         String?
-  coverImageUrl   String?
-  primaryColor    String?
-  googleReviewUrl String?
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                 String               @id @default(uuid())
+  name               String
+  slug               String               @unique
+  description        String?
+  localContext       String?              @db.Text
+  keywordsRatingLow  String[]             @default([])
+  keywordsRatingHigh String[]             @default([])
+  logoUrl            String?
+  coverImageUrl      String?
+  primaryColor       String?
+  googleReviewUrl    String?
+  isActive           Boolean              @default(true)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  member             BusinessMember?
+  feedbackSubmissions FeedbackSubmission[]
+  aiUsageEvents      AiUsageEvent[]
 
   @@map("businesses")
 }
@@ -49,4 +52,60 @@ model PlatformAdmin {
   updatedAt DateTime @updatedAt
 
   @@map("platform_admins")
+}
+
+enum BusinessMemberStatus {
+  invited
+  active
+  revoked
+}
+
+model BusinessMember {
+  id          String               @id @default(uuid())
+  businessId  String               @unique
+  business    Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  email       String
+  clerkUserId String?
+  status      BusinessMemberStatus @default(invited)
+  invitedAt   DateTime             @default(now())
+  acceptedAt  DateTime?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@index([email])
+  @@index([clerkUserId])
+  @@map("business_members")
+}
+
+enum FeedbackSource {
+  private_submit
+  draft_generated
+}
+
+model FeedbackSubmission {
+  id         String         @id @default(uuid())
+  businessId String
+  business   Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  rating     Int
+  keywords   String[]
+  comment    String?        @db.Text
+  isPrivate  Boolean
+  readAt     DateTime?
+  source     FeedbackSource
+  createdAt  DateTime       @default(now())
+
+  @@index([businessId, createdAt(sort: Desc)])
+  @@map("feedback_submissions")
+}
+
+model AiUsageEvent {
+  id         String   @id @default(uuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  model      String
+  success    Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  @@index([businessId, createdAt])
+  @@map("ai_usage_events")
 }
