@@ -46,7 +46,9 @@ export class ClerkAuthGuard implements CanActivate {
       const email = extractEmailFromClerkPayload(payload);
       const clerkUserId = extractClerkUserId(payload);
       const username = extractUsernameFromClerkPayload(payload);
-      if (!email && !username) {
+      // Username-only portal users often have no email/username in the JWT unless
+      // added to the Clerk session template; `sub` is always present.
+      if (!email && !username && !clerkUserId) {
         throw new UnauthorizedException('Invalid session claims');
       }
       request.clerkEmail = email;

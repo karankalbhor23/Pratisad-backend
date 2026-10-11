@@ -21,9 +21,11 @@ export function extractClerkUserId(
 export function extractUsernameFromClerkPayload(
   payload: Record<string, unknown>,
 ): string | undefined {
-  const username = payload.username;
-  if (typeof username === 'string' && username.trim()) {
-    return username.trim().toLowerCase();
+  const candidates = [payload.username, payload.uname];
+  for (const value of candidates) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim().toLowerCase();
+    }
   }
   return undefined;
 }
