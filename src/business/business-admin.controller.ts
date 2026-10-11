@@ -6,13 +6,15 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
 import { PlatformAdminGuard } from '../auth/platform-admin.guard';
 import { AiUsageService } from './ai-usage.service';
 import { BusinessMembersService } from './business-members.service';
-import { InvitePortalUserDto } from './dto/invite-portal-user.dto';
+import { ProvisionPortalUserDto } from './dto/provision-portal-user.dto';
+import { ResetPortalCredentialsDto } from './dto/reset-portal-credentials.dto';
 
 @Controller('businesses')
 export class BusinessAdminController {
@@ -28,14 +30,28 @@ export class BusinessAdminController {
     return this.members.getPortalUser(id);
   }
 
-  @Post(':id/portal-user/invite')
+  @Post(':id/portal-user/provision')
   @HttpCode(HttpStatus.OK)
   @UseGuards(PlatformAdminGuard)
-  invitePortalUser(
+  provisionPortalUser(
     @Param('id') id: string,
-    @Body() body: InvitePortalUserDto,
+    @Body() body: ProvisionPortalUserDto,
   ) {
-    return this.members.invitePortalUser(id, body.email);
+    return this.members.provisionPortalUser(id, body.username, body.password);
+  }
+
+  @Patch(':id/portal-user/credentials')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(PlatformAdminGuard)
+  resetCredentials(
+    @Param('id') id: string,
+    @Body() body: ResetPortalCredentialsDto,
+  ) {
+    return this.members.resetPortalCredentials(
+      id,
+      body.password,
+      body.username,
+    );
   }
 
   @Delete(':id/portal-user')

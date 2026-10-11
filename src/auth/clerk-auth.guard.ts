@@ -10,6 +10,7 @@ import { ClerkAuthedRequest } from './authed-request.types';
 import {
   extractClerkUserId,
   extractEmailFromClerkPayload,
+  extractUsernameFromClerkPayload,
 } from './clerk-token.util';
 
 @Injectable()
@@ -27,6 +28,8 @@ export class ClerkAuthGuard implements CanActivate {
         this.config.get<string>('E2E_CLERK_EMAIL') ?? 'e2e@test.com';
       request.clerkUserId =
         this.config.get<string>('E2E_CLERK_USER_ID') ?? 'e2e-user-id';
+      request.clerkUsername =
+        this.config.get<string>('E2E_CLERK_USERNAME') ?? 'e2e-portal-user';
       return true;
     }
 
@@ -42,9 +45,13 @@ export class ClerkAuthGuard implements CanActivate {
       const payload = await verifyToken(header.slice(7), { secretKey });
       const email = extractEmailFromClerkPayload(payload);
       const clerkUserId = extractClerkUserId(payload);
-      if (!email) throw new UnauthorizedException('Email claim missing from token');
+      const username = extractUsernameFromClerkPayload(payload);
+      if (!email && !username) {
+        throw new UnauthorizedException('Invalid session claims');
+      }
       request.clerkEmail = email;
       request.clerkUserId = clerkUserId;
+      request.clerkUsername = username;
       return true;
     } catch (error) {
       if (error instanceof UnauthorizedException) throw error;

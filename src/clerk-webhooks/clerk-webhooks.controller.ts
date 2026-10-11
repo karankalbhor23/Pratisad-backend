@@ -16,7 +16,8 @@ type ClerkWebhookEvent = {
   type: string;
   data: {
     id?: string;
-    email_addresses?: Array<{ email_address: string }>;
+    username?: string | null;
+    email_addresses?: Array<{ email_address: string; id?: string }>;
     primary_email_address_id?: string;
     public_metadata?: Record<string, unknown>;
   };
@@ -68,8 +69,14 @@ export class ClerkWebhooksController {
       const metadata = event.data.public_metadata ?? {};
       const businessId =
         typeof metadata.businessId === 'string' ? metadata.businessId : undefined;
-      if (userId && primary) {
-        await this.members.activateFromClerkUser(primary, userId, businessId);
+      const username = event.data.username ?? undefined;
+      if (userId && (primary || username)) {
+        await this.members.activateFromClerkUser(
+          primary ?? null,
+          userId,
+          businessId,
+          username,
+        );
       }
     }
 

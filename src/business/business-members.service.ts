@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -7,9 +8,13 @@ import { ConfigService } from '@nestjs/config';
 import { createClerkClient } from '@clerk/backend';
 import { BusinessMemberStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  assertPortalPassword,
+  normalizePortalUsername,
+} from './portal-username.util';
 
 export type PortalUserStatusDto = {
-  email: string | null;
+  username: string | null;
   status: 'none' | BusinessMemberStatus;
   invitedAt: string | null;
   acceptedAt: string | null;
@@ -29,65 +34,119 @@ export class BusinessMembersService {
     });
     if (!member || member.status === BusinessMemberStatus.revoked) {
       return {
-        email: null,
+        username: null,
         status: 'none',
         invitedAt: null,
         acceptedAt: null,
       };
     }
-    return {
-      email: member.email,
-      status: member.status,
-      invitedAt: member.invitedAt.toISOString(),
-      acceptedAt: member.acceptedAt?.toISOString() ?? null,
-    };
+    return this.toStatusDto(member);
   }
 
-  async invitePortalUser(businessId: string, email: string): Promise<PortalUserStatusDto> {
+  async provisionPortalUser(
+    businessId: string,
+    username: string,
+    password: string,
+  ): Promise<PortalUserStatusDto> {
     await this.assertBusinessExists(businessId);
-    const normalized = email.trim().toLowerCase();
-    if (!normalized || !normalized.includes('@')) {
-      throw new BadRequestException('A valid email is required.');
-    }
+    const normalizedUsername = normalizePortalUsername(username);
+    assertPortalPassword(password);
 
-    const secretKey = this.config.get<string>('CLERK_SECRET_KEY');
-    const webOrigin = this.config.get<string>('WEB_APP_ORIGIN');
-    if (!secretKey || !webOrigin) {
-      throw new BadRequestException(
-        'Portal invitations are not configured on the server.',
-      );
-    }
-
-    const clerk = createClerkClient({ secretKey });
-    await clerk.invitations.createInvitation({
-      emailAddress: normalized,
-      redirectUrl: `${webOrigin.replace(/\/+$/, '')}/portal`,
-      publicMetadata: { role: 'business_user', businessId },
-      ignoreExisting: true,
+    const existingUsername = await this.prisma.businessMember.findUnique({
+      where: { username: normalizedUsername },
     });
+    if (existingUsername && existingUsername.businessId !== businessId) {
+      throw new ConflictException('This portal username is already in use.');
+    }
 
+    const clerkUserId = await this.createClerkPortalUser(
+      normalizedUsername,
+      password,
+      businessId,
+    );
+
+    const now = new Date();
     const member = await this.prisma.businessMember.upsert({
       where: { businessId },
       create: {
         businessId,
-        email: normalized,
-        status: BusinessMemberStatus.invited,
+        username: normalizedUsername,
+        clerkUserId,
+        status: BusinessMemberStatus.active,
+        acceptedAt: now,
       },
       update: {
-        email: normalized,
-        status: BusinessMemberStatus.invited,
-        invitedAt: new Date(),
-        acceptedAt: null,
-        clerkUserId: null,
+        username: normalizedUsername,
+        clerkUserId,
+        email: null,
+        status: BusinessMemberStatus.active,
+        acceptedAt: now,
       },
     });
 
-    return {
-      email: member.email,
-      status: member.status,
-      invitedAt: member.invitedAt.toISOString(),
-      acceptedAt: member.acceptedAt?.toISOString() ?? null,
-    };
+    return this.toStatusDto(member);
+  }
+
+  async resetPortalCredentials(
+    businessId: string,
+    password: string,
+    username?: string,
+  ): Promise<PortalUserStatusDto> {
+    await this.assertBusinessExists(businessId);
+    const member = await this.prisma.businessMember.findUnique({
+      where: { businessId },
+    });
+    if (!member || member.status === BusinessMemberStatus.revoked) {
+      throw new NotFoundException('No active portal user for this business.');
+    }
+    if (!member.clerkUserId) {
+      throw new BadRequestException('Portal user is not linked to Clerk.');
+    }
+
+    assertPortalPassword(password);
+    const secretKey = this.config.get<string>('CLERK_SECRET_KEY');
+    if (!secretKey) {
+      throw new BadRequestException('Portal credentials are not configured.');
+    }
+
+    let nextUsername = member.username;
+    if (username !== undefined && username.trim()) {
+      nextUsername = normalizePortalUsername(username);
+      if (nextUsername !== member.username) {
+        const taken = await this.prisma.businessMember.findUnique({
+          where: { username: nextUsername },
+        });
+        if (taken && taken.businessId !== businessId) {
+          throw new ConflictException('This portal username is already in use.');
+        }
+      }
+    }
+
+    const clerk = createClerkClient({ secretKey });
+    try {
+      await clerk.users.updateUser(member.clerkUserId, {
+        password,
+        ...(nextUsername !== member.username ? { username: nextUsername } : {}),
+        publicMetadata: {
+          role: 'business_user',
+          businessId,
+        },
+      });
+    } catch {
+      throw new ConflictException(
+        'Could not update portal credentials. Check username and password rules.',
+      );
+    }
+
+    const updated = await this.prisma.businessMember.update({
+      where: { businessId },
+      data: {
+        username: nextUsername,
+        status: BusinessMemberStatus.active,
+      },
+    });
+
+    return this.toStatusDto(updated);
   }
 
   async revokePortalUser(businessId: string): Promise<PortalUserStatusDto> {
@@ -97,7 +156,7 @@ export class BusinessMembersService {
     });
     if (!existing) {
       return {
-        email: null,
+        username: null,
         status: 'none',
         invitedAt: null,
         acceptedAt: null,
@@ -108,7 +167,7 @@ export class BusinessMembersService {
       data: { status: BusinessMemberStatus.revoked },
     });
     return {
-      email: existing.email,
+      username: existing.username,
       status: BusinessMemberStatus.revoked,
       invitedAt: existing.invitedAt.toISOString(),
       acceptedAt: existing.acceptedAt?.toISOString() ?? null,
@@ -116,17 +175,20 @@ export class BusinessMembersService {
   }
 
   async activateFromClerkUser(
-    email: string,
+    email: string | null,
     clerkUserId: string,
     businessIdFromMetadata?: string,
+    usernameFromClerk?: string | null,
   ): Promise<void> {
-    const normalized = email.toLowerCase();
     const member = await this.prisma.businessMember.findFirst({
       where: {
+        status: { not: BusinessMemberStatus.revoked },
         OR: [
-          { email: normalized, status: BusinessMemberStatus.invited },
-          ...(businessIdFromMetadata
-            ? [{ businessId: businessIdFromMetadata }]
+          { clerkUserId },
+          ...(businessIdFromMetadata ? [{ businessId: businessIdFromMetadata }] : []),
+          ...(email ? [{ email: email.toLowerCase() }] : []),
+          ...(usernameFromClerk
+            ? [{ username: usernameFromClerk.trim().toLowerCase() }]
             : []),
         ],
       },
@@ -138,9 +200,9 @@ export class BusinessMembersService {
       where: { id: member.id },
       data: {
         clerkUserId,
-        email: normalized,
+        ...(email ? { email: email.toLowerCase() } : {}),
         status: BusinessMemberStatus.active,
-        acceptedAt: new Date(),
+        acceptedAt: member.acceptedAt ?? new Date(),
       },
     });
 
@@ -158,6 +220,52 @@ export class BusinessMembersService {
         // Non-fatal if metadata update fails; DB membership is source of truth.
       }
     }
+  }
+
+  private async createClerkPortalUser(
+    username: string,
+    password: string,
+    businessId: string,
+  ): Promise<string> {
+    const secretKey = this.config.get<string>('CLERK_SECRET_KEY');
+    if (!secretKey) {
+      throw new BadRequestException('Portal credentials are not configured.');
+    }
+
+    const clerk = createClerkClient({ secretKey });
+    try {
+      const user = await clerk.users.createUser({
+        username,
+        password,
+        publicMetadata: { role: 'business_user', businessId },
+      });
+      if (!user.id) {
+        throw new BadRequestException('Could not create portal user in Clerk.');
+      }
+      return user.id;
+    } catch (error: unknown) {
+      const status = (error as { status?: number })?.status;
+      if (status === 422 || status === 409) {
+        throw new ConflictException(
+          'Could not create portal user. Username may be taken or password does not meet Clerk rules.',
+        );
+      }
+      throw new BadRequestException('Could not create portal user in Clerk.');
+    }
+  }
+
+  private toStatusDto(member: {
+    username: string;
+    status: BusinessMemberStatus;
+    invitedAt: Date;
+    acceptedAt: Date | null;
+  }): PortalUserStatusDto {
+    return {
+      username: member.username,
+      status: member.status,
+      invitedAt: member.invitedAt.toISOString(),
+      acceptedAt: member.acceptedAt?.toISOString() ?? null,
+    };
   }
 
   private async assertBusinessExists(businessId: string): Promise<void> {

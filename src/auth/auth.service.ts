@@ -10,7 +10,7 @@ export type AuthMeResponse =
     }
   | {
       role: 'business_user';
-      email: string;
+      username: string;
       businessId: string;
       businessName: string;
     };
@@ -19,34 +19,46 @@ export type AuthMeResponse =
 export class AuthService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async resolveMe(email: string, clerkUserId?: string): Promise<AuthMeResponse> {
-    const normalized = email.toLowerCase();
+  async resolveMe(input: {
+    email?: string;
+    username?: string;
+    clerkUserId?: string;
+  }): Promise<AuthMeResponse> {
+    const normalizedEmail = input.email?.toLowerCase();
+    const normalizedUsername = input.username?.toLowerCase();
 
-    const admin = await this.prisma.platformAdmin.findFirst({
-      where: { email: normalized, isActive: true },
-    });
-    if (admin) {
-      return {
-        role: 'platform_admin',
-        email: admin.email,
-        isPlatformAdmin: true,
-      };
+    if (normalizedEmail) {
+      const admin = await this.prisma.platformAdmin.findFirst({
+        where: { email: normalizedEmail, isActive: true },
+      });
+      if (admin) {
+        return {
+          role: 'platform_admin',
+          email: admin.email,
+          isPlatformAdmin: true,
+        };
+      }
     }
 
-    const member = await this.prisma.businessMember.findFirst({
-      where: {
-        status: BusinessMemberStatus.active,
-        OR: [
-          { email: normalized },
-          ...(clerkUserId ? [{ clerkUserId }] : []),
-        ],
-      },
-      include: { business: { select: { name: true } } },
-    });
+    const orConditions: Array<Record<string, string>> = [];
+    if (input.clerkUserId) orConditions.push({ clerkUserId: input.clerkUserId });
+    if (normalizedUsername) orConditions.push({ username: normalizedUsername });
+    if (normalizedEmail) orConditions.push({ email: normalizedEmail });
+
+    const member = orConditions.length
+      ? await this.prisma.businessMember.findFirst({
+          where: {
+            status: BusinessMemberStatus.active,
+            OR: orConditions,
+          },
+          include: { business: { select: { name: true } } },
+        })
+      : null;
+
     if (member) {
       return {
         role: 'business_user',
-        email: member.email,
+        username: member.username,
         businessId: member.businessId,
         businessName: member.business.name,
       };

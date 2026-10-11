@@ -64,9 +64,10 @@ model BusinessMember {
   id          String               @id @default(uuid())
   businessId  String               @unique
   business    Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  email       String
+  username    String               @unique
+  email       String?
   clerkUserId String?
-  status      BusinessMemberStatus @default(invited)
+  status      BusinessMemberStatus @default(active)
   invitedAt   DateTime             @default(now())
   acceptedAt  DateTime?
   createdAt   DateTime             @default(now())

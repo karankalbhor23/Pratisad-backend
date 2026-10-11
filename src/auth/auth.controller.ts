@@ -20,9 +20,10 @@ export class AuthController {
   @UseGuards(ClerkAuthGuard)
   me(@Req() request: Express.Request) {
     const authed = asClerkAuthedRequest(request);
-    return this.authService.resolveMe(
-      authed.clerkEmail ?? '',
-      authed.clerkUserId,
-    );
+    return this.authService.resolveMe({
+      email: authed.clerkEmail,
+      username: authed.clerkUsername,
+      clerkUserId: authed.clerkUserId,
+    });
   }
 }

@@ -85,4 +85,20 @@ export class CreateBusinessDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(3)
+  @MaxLength(32)
+  @Matches(/^[a-zA-Z0-9][a-zA-Z0-9._-]{2,31}$/, {
+    message:
+      'Portal username must be 3–32 characters: letters, numbers, dots, underscores, or hyphens.',
+  })
+  portalUsername: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(8)
+  @MaxLength(128)
+  portalPassword: string;
 }

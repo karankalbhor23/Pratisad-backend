@@ -16,6 +16,7 @@ import {
 } from './dto/business-response.dto';
 import { BusinessMemberStatus, Prisma } from '@prisma/client';
 import { AiUsageService } from './ai-usage.service';
+import { BusinessMembersService } from './business-members.service';
 import { normalizeKeywordList } from './keyword-options.util';
 
 @Injectable()
@@ -25,6 +26,7 @@ export class BusinessService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly aiUsage: AiUsageService,
+    private readonly members: BusinessMembersService,
   ) {}
 
   private normalizeBusinessWriteData<
@@ -47,10 +49,24 @@ export class BusinessService {
   async create(
     createBusinessDto: CreateBusinessDto,
   ): Promise<BusinessResponseDto> {
+    const { portalUsername, portalPassword, ...businessFields } =
+      createBusinessDto;
     try {
       const business = await this.prisma.business.create({
-        data: this.normalizeBusinessWriteData(createBusinessDto),
+        data: this.normalizeBusinessWriteData(
+          businessFields as CreateBusinessDto,
+        ),
       });
+      try {
+        await this.members.provisionPortalUser(
+          business.id,
+          portalUsername,
+          portalPassword,
+        );
+      } catch (provisionError) {
+        await this.prisma.business.delete({ where: { id: business.id } });
+        throw provisionError;
+      }
       this.logger.log(`Created business: ${business.slug} (${business.id})`);
       return business;
     } catch (error) {

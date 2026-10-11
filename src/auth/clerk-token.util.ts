@@ -17,3 +17,13 @@ export function extractClerkUserId(
   if (typeof sub === 'string' && sub) return sub;
   return undefined;
 }
+
+export function extractUsernameFromClerkPayload(
+  payload: Record<string, unknown>,
+): string | undefined {
+  const username = payload.username;
+  if (typeof username === 'string' && username.trim()) {
+    return username.trim().toLowerCase();
+  }
+  return undefined;
+}

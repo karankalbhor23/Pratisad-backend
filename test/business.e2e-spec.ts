@@ -7,6 +7,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
+import { BusinessMembersService } from '../src/business/business-members.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 describe('Business API (e2e)', () => {
@@ -14,11 +15,30 @@ describe('Business API (e2e)', () => {
   let prisma: PrismaService;
   const createdBusinessIds: string[] = [];
 
+  const e2ePortalFields = (slug: string) => ({
+    portalUsername: slug.length >= 3 ? slug : `e2e-${slug}`,
+    portalPassword: 'e2e-password-123',
+  });
+
   beforeAll(async () => {
     process.env.E2E_AUTH_BYPASS = 'true';
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(BusinessMembersService)
+      .useValue({
+        provisionPortalUser: jest.fn().mockResolvedValue({
+          username: 'e2e-portal',
+          status: 'active',
+          invitedAt: new Date().toISOString(),
+          acceptedAt: new Date().toISOString(),
+        }),
+        getPortalUser: jest.fn(),
+        resetPortalCredentials: jest.fn(),
+        revokePortalUser: jest.fn(),
+        activateFromClerkUser: jest.fn(),
+      })
+      .compile();
 
     app = moduleFixture.createNestApplication();
 
@@ -64,6 +84,8 @@ describe('Business API (e2e)', () => {
         primaryColor: '#2563EB',
         googleReviewUrl: 'https://g.page/test/review',
         isActive: true,
+        portalUsername: 'e2e-portal-user',
+        portalPassword: 'e2e-password-123',
       };
 
       const response = await request(app.getHttpServer())
@@ -255,6 +277,7 @@ describe('Business API (e2e)', () => {
       const createDto = {
         name: 'Duplicate Slug Test',
         slug: 'duplicate-slug-test',
+        ...e2ePortalFields('duplicate-slug-test'),
       };
 
       // Create first business
@@ -286,6 +309,7 @@ describe('Business API (e2e)', () => {
           .send({
             name: `Pagination Test ${i}`,
             slug: `pagination-test-${i}`,
+            ...e2ePortalFields(`pagination-test-${i}`),
           })
           .expect(201);
         createdBusinessIds.push(response.body.id);
@@ -351,6 +375,7 @@ describe('Business API (e2e)', () => {
         .send({
           name: 'Get By ID Test',
           slug: 'get-by-id-test',
+          ...e2ePortalFields('get-by-id-test'),
         })
         .expect(201);
       testBusinessId = response.body.id;
@@ -386,6 +411,7 @@ describe('Business API (e2e)', () => {
         .send({
           name: 'Update Test',
           slug: 'update-test',
+          ...e2ePortalFields('update-test'),
         })
         .expect(201);
       testBusinessId = response.body.id;
@@ -425,6 +451,7 @@ describe('Business API (e2e)', () => {
         .send({
           name: 'Other Business',
           slug: 'other-business-slug',
+          ...e2ePortalFields('other-business-slug'),
         })
         .expect(201);
       createdBusinessIds.push(otherResponse.body.id);
@@ -458,6 +485,7 @@ describe('Business API (e2e)', () => {
           primaryColor: '#FF5733',
           googleReviewUrl: 'https://g.page/active/review',
           isActive: true,
+          ...e2ePortalFields('active-business-public'),
         })
         .expect(201);
       activeBusinessSlug = activeResponse.body.slug;
@@ -470,6 +498,7 @@ describe('Business API (e2e)', () => {
           name: 'Inactive Business',
           slug: 'inactive-business-public',
           isActive: false,
+          ...e2ePortalFields('inactive-business-public'),
         })
         .expect(201);
       inactiveBusinessSlug = inactiveResponse.body.slug;

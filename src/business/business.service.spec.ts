@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BusinessService } from './business.service';
 import { AiUsageService } from './ai-usage.service';
+import { BusinessMembersService } from './business-members.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotFoundException, ConflictException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -10,6 +11,13 @@ describe('BusinessService', () => {
 
   const mockAiUsageService = {
     monthCountsByBusinessIds: jest.fn().mockResolvedValue(new Map()),
+  };
+
+  const mockMembersService = {
+    provisionPortalUser: jest.fn().mockResolvedValue({
+      username: 'portal-user',
+      status: 'active',
+    }),
   };
 
   const mockPrismaService = {
@@ -52,6 +60,10 @@ describe('BusinessService', () => {
           provide: AiUsageService,
           useValue: mockAiUsageService,
         },
+        {
+          provide: BusinessMembersService,
+          useValue: mockMembersService,
+        },
       ],
     }).compile();
 
@@ -74,13 +86,39 @@ describe('BusinessService', () => {
         name: 'Test Restaurant',
         slug: 'test-restaurant',
         description: 'A great place to eat',
+        portalUsername: 'test-owner',
+        portalPassword: 'password123',
       };
 
       const result = await service.create(createDto);
 
       expect(result).toEqual(mockBusiness);
-      expect(mockPrismaService.business.create).toHaveBeenCalledWith({
-        data: createDto,
+      expect(mockPrismaService.business.create).toHaveBeenCalled();
+      expect(mockMembersService.provisionPortalUser).toHaveBeenCalledWith(
+        mockBusiness.id,
+        'test-owner',
+        'password123',
+      );
+    });
+
+    it('should delete business when portal provision fails', async () => {
+      mockPrismaService.business.create.mockResolvedValue(mockBusiness);
+      mockMembersService.provisionPortalUser = jest
+        .fn()
+        .mockRejectedValue(new Error('clerk failed'));
+      mockPrismaService.business.delete = jest.fn().mockResolvedValue({});
+
+      await expect(
+        service.create({
+          name: 'Test Restaurant',
+          slug: 'test-restaurant',
+          portalUsername: 'owner',
+          portalPassword: 'password123',
+        }),
+      ).rejects.toThrow('clerk failed');
+
+      expect(mockPrismaService.business.delete).toHaveBeenCalledWith({
+        where: { id: mockBusiness.id },
       });
     });
 
@@ -97,6 +135,8 @@ describe('BusinessService', () => {
       const createDto = {
         name: 'Test Restaurant',
         slug: 'test-restaurant',
+        portalUsername: 'owner',
+        portalPassword: 'password123',
       };
 
       await expect(service.create(createDto)).rejects.toThrow(

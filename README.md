@@ -530,4 +530,4 @@ The endpoint does not store feedback or drafts. It uses an in-memory limit of 10
 
 `POST /feedback` stores private customer feedback for ratings 1–3 only. `POST /review-drafts` still generates AI drafts and records usage plus a feedback row for insights.
 
-Business-management routes (`POST/PATCH/GET /businesses`, portal-user invite, usage) require platform admin. `GET /portal/*` requires an active business member. Seed platform admins with `PLATFORM_ADMIN_EMAIL` and `npm run db:seed`.
+`POST /businesses` requires `portalUsername` and `portalPassword` and provisions a Clerk user for the business portal. In Clerk, enable **Username** as a sign-in identifier (password required) and keep public sign-up disabled. Session JWT should include `metadata` (and `username` if you add it to the session template). Admin routes `PATCH /businesses/:id/portal-user/credentials` reset password or username. Business-management and usage routes require platform admin. `GET /portal/*` requires an active business member. Seed platform admins with `PLATFORM_ADMIN_EMAIL` and `npm run db:seed`.
