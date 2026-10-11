@@ -8,6 +8,8 @@ export interface PublicBusinessResponseDto {
   name: string;
   slug: string;
   description: string | null;
+  keywordsRatingLow: string[];
+  keywordsRatingHigh: string[];
   logoUrl: string | null;
   coverImageUrl: string | null;
   primaryColor: string | null;

@@ -485,6 +485,11 @@ describe('Business API (e2e)', () => {
       expect(response.body).toHaveProperty('name', 'Active Business');
       expect(response.body).toHaveProperty('slug', activeBusinessSlug);
       expect(response.body).toHaveProperty('description', 'This is active');
+      expect(response.body).toHaveProperty('keywordsRatingLow');
+      expect(response.body).toHaveProperty('keywordsRatingHigh');
+      expect(Array.isArray(response.body.keywordsRatingLow)).toBe(true);
+      expect(Array.isArray(response.body.keywordsRatingHigh)).toBe(true);
+      expect(response.body).not.toHaveProperty('localContext');
       expect(response.body).toHaveProperty(
         'logoUrl',
         'https://example.com/logo.png',

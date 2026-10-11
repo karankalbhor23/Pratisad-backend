@@ -210,7 +210,10 @@ The **Business** domain represents a shop, restaurant, service provider, or othe
 | `id` | UUID | Primary key, auto-generated |
 | `name` | String | Required, max 200 characters |
 | `slug` | String | Required, unique, 2-50 characters, lowercase alphanumeric with hyphens |
-| `description` | String | Optional, max 1000 characters |
+| `description` | String | Optional, max 1000 characters; customer-facing copy on `/r/{slug}` |
+| `localContext` | String | Optional, max 2000 characters; **AI review-draft prompt only** (not returned on public by-slug) |
+| `keywordsRatingLow` | String[] | Optional, max 30 items × 60 chars; experience chips for ratings **1–3** (empty → platform defaults) |
+| `keywordsRatingHigh` | String[] | Optional, max 30 items × 60 chars; experience chips for ratings **4–5** (empty → platform defaults) |
 | `logoUrl` | String | Optional, valid URL, max 500 characters |
 | `coverImageUrl` | String | Optional, valid URL, max 500 characters |
 | `primaryColor` | String | Optional, hex color format (e.g., `#2563EB`) |
@@ -515,7 +518,7 @@ All error responses follow a consistent structure:
 
 ## Review Drafts
 
-`POST /review-drafts` creates an editable draft from customer-provided feedback. It accepts `businessSlug`, an integer `rating` from 1 to 5, one to ten keyword strings, and an optional comment up to 1000 characters. A successful response is `{ "draft": "..." }`.
+`POST /review-drafts` creates an editable draft from customer-provided feedback. It accepts `businessSlug`, an integer `rating` from 1 to 5, one to ten keyword strings (each must be allowed for that business and rating band: 1–3 vs 4–5), and an optional comment up to 1000 characters. A successful response is `{ "draft": "..." }`. Draft prompts use `localContext`, not `description`.
 
 Set `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` (an OpenRouter-supported model ID) in the server environment. Tests mock `fetch`, so they do not need a real API key or provider request.
 

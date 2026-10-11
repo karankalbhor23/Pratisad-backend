@@ -1,5 +1,6 @@
 import {
   BadGatewayException,
+  BadRequestException,
   GatewayTimeoutException,
   HttpException,
   HttpStatus,
@@ -8,6 +9,11 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { bandForRating } from '../business/experience-keywords.constants';
+import {
+  allowedKeywordSet,
+  validateSubmittedKeywords,
+} from '../business/keyword-options.util';
 import { BusinessService } from '../business/business.service';
 import { CreateReviewDraftDto } from './dto/create-review-draft.dto';
 
@@ -32,13 +38,13 @@ function sentimentForRating(rating: number): string {
 
 function buildUserPrompt(
   input: CreateReviewDraftDto,
-  business: { name: string; description: string | null },
+  business: { name: string; localContext: string | null },
 ): string {
-  const description = business.description?.trim() || '(none)';
+  const context = business.localContext?.trim() || '(none)';
   const comment = input.comment?.trim() || '(none)';
   return [
     `Business: ${business.name}`,
-    `Business context: ${description}`,
+    `Business context: ${context}`,
     `Rating: ${input.rating}/5 (${sentimentForRating(input.rating)})`,
     `Experience themes: ${input.keywords.join(', ')}`,
     `Customer comment: ${comment}`,
@@ -58,6 +64,15 @@ export class ReviewDraftsService {
       true,
     );
     if (!business) throw new NotFoundException('Business not found');
+
+    const band = bandForRating(input.rating);
+    const allowed = allowedKeywordSet(business, band);
+    if (!validateSubmittedKeywords(input.keywords, allowed)) {
+      throw new BadRequestException(
+        'Invalid experience keywords for this rating.',
+      );
+    }
+
     const apiKey = this.config.get<string>('OPENROUTER_API_KEY');
     const model = this.config.get<string>('OPENROUTER_MODEL');
     if (!apiKey || !model)

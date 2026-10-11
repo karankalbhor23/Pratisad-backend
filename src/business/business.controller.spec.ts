@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { PlatformAdminGuard } from '../auth/platform-admin.guard';
 import { BusinessController } from './business.controller';
 import { BusinessService } from './business.service';
 
@@ -31,6 +32,8 @@ describe('BusinessController', () => {
     name: 'Test Restaurant',
     slug: 'test-restaurant',
     description: 'A great place to eat',
+    keywordsRatingLow: [],
+    keywordsRatingHigh: [],
     logoUrl: 'https://example.com/logo.png',
     coverImageUrl: 'https://example.com/cover.jpg',
     primaryColor: '#2563EB',
@@ -46,7 +49,10 @@ describe('BusinessController', () => {
           useValue: mockBusinessService,
         },
       ],
-    }).compile();
+    })
+      .overrideGuard(PlatformAdminGuard)
+      .useValue({ canActivate: jest.fn().mockResolvedValue(true) })
+      .compile();
 
     controller = module.get<BusinessController>(BusinessController);
   });

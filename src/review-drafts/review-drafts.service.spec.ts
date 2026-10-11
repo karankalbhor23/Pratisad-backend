@@ -1,5 +1,6 @@
 import {
   BadGatewayException,
+  BadRequestException,
   GatewayTimeoutException,
   HttpException,
   NotFoundException,
@@ -27,7 +28,9 @@ describe('ReviewDraftsService', () => {
     jest.resetAllMocks();
     businessService.findBySlug = jest.fn().mockResolvedValue({
       name: 'Test Business',
-      description: 'A neighborhood cafe',
+      localContext: 'A neighborhood cafe',
+      keywordsRatingLow: [],
+      keywordsRatingHigh: [],
     });
     config.get = jest.fn((key: string) =>
       key === 'OPENROUTER_API_KEY' ? 'test-key' : 'test-model',
@@ -84,14 +87,28 @@ describe('ReviewDraftsService', () => {
     expect(body.messages[1].content).toContain('Customer comment: Too slow.');
   });
 
+  it('rejects keywords that are not allowed for the rating band', async () => {
+    await expect(
+      service.create({
+        ...input,
+        rating: 5,
+        keywords: ['Poor experience'],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
   it('rejects missing businesses and missing provider configuration', async () => {
     businessService.findBySlug = jest.fn().mockResolvedValue(null);
     await expect(service.create(input)).rejects.toBeInstanceOf(
       NotFoundException,
     );
-    businessService.findBySlug = jest
-      .fn()
-      .mockResolvedValue({ name: 'Test Business' });
+    businessService.findBySlug = jest.fn().mockResolvedValue({
+      name: 'Test Business',
+      localContext: null,
+      keywordsRatingLow: [],
+      keywordsRatingHigh: [],
+    });
     config.get = jest.fn().mockReturnValue(undefined);
     await expect(service.create(input)).rejects.toBeInstanceOf(
       ServiceUnavailableException,

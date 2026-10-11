@@ -14,6 +14,7 @@ import {
   PaginatedBusinessResponseDto,
 } from './dto/business-response.dto';
 import { Prisma } from '@prisma/client';
+import { normalizeKeywordList } from './keyword-options.util';
 
 @Injectable()
 export class BusinessService {
@@ -21,12 +22,29 @@ export class BusinessService {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  private normalizeBusinessWriteData<
+    T extends CreateBusinessDto | UpdateBusinessDto,
+  >(dto: T): T {
+    const data = { ...dto };
+    if (dto.localContext !== undefined) {
+      const trimmed = dto.localContext?.trim();
+      (data as { localContext?: string | null }).localContext = trimmed || null;
+    }
+    if (dto.keywordsRatingLow !== undefined) {
+      data.keywordsRatingLow = normalizeKeywordList(dto.keywordsRatingLow);
+    }
+    if (dto.keywordsRatingHigh !== undefined) {
+      data.keywordsRatingHigh = normalizeKeywordList(dto.keywordsRatingHigh);
+    }
+    return data;
+  }
+
   async create(
     createBusinessDto: CreateBusinessDto,
   ): Promise<BusinessResponseDto> {
     try {
       const business = await this.prisma.business.create({
-        data: createBusinessDto,
+        data: this.normalizeBusinessWriteData(createBusinessDto),
       });
       this.logger.log(`Created business: ${business.slug} (${business.id})`);
       return business;
@@ -113,6 +131,8 @@ export class BusinessService {
       name: business.name,
       slug: business.slug,
       description: business.description,
+      keywordsRatingLow: business.keywordsRatingLow,
+      keywordsRatingHigh: business.keywordsRatingHigh,
       logoUrl: business.logoUrl,
       coverImageUrl: business.coverImageUrl,
       primaryColor: business.primaryColor,
@@ -127,7 +147,7 @@ export class BusinessService {
     try {
       const business = await this.prisma.business.update({
         where: { id },
-        data: updateBusinessDto,
+        data: this.normalizeBusinessWriteData(updateBusinessDto),
       });
       this.logger.log(`Updated business: ${business.slug} (${business.id})`);
       return business;

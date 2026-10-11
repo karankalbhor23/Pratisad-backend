@@ -26,6 +26,9 @@ model Business {
   name            String
   slug            String   @unique
   description     String?
+  localContext    String?  @db.Text
+  keywordsRatingLow  String[] @default([])
+  keywordsRatingHigh String[] @default([])
   logoUrl         String?
   coverImageUrl   String?
   primaryColor    String?

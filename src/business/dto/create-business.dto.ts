@@ -1,4 +1,6 @@
 import {
+  ArrayMaxSize,
+  IsArray,
   IsString,
   IsNotEmpty,
   IsOptional,
@@ -7,6 +9,7 @@ import {
   MaxLength,
   IsBoolean,
   MinLength,
+  Length,
 } from 'class-validator';
 import { IsGoogleReviewUrl } from '../validators/is-google-review-url.validator';
 
@@ -30,6 +33,25 @@ export class CreateBusinessDto {
   @IsString()
   @MaxLength(1000)
   description?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  localContext?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(30)
+  @IsString({ each: true })
+  @Length(1, 60, { each: true })
+  keywordsRatingLow?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(30)
+  @IsString({ each: true })
+  @Length(1, 60, { each: true })
+  keywordsRatingHigh?: string[];
 
   @IsOptional()
   @IsUrl({ require_protocol: true }, { message: 'logoUrl must be a valid URL' })
