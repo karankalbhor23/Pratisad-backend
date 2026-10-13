@@ -8,6 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { FeedbackModule } from './feedback/feedback.module';
 import { PortalModule } from './portal/portal.module';
 import { ClerkWebhooksModule } from './clerk-webhooks/clerk-webhooks.module';
+import { ReviewCardsModule } from './review-cards/review-cards.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { ClerkWebhooksModule } from './clerk-webhooks/clerk-webhooks.module';
     ReviewDraftsModule,
     PortalModule,
     ClerkWebhooksModule,
+    ReviewCardsModule,
   ],
 })
 export class AppModule {}

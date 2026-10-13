@@ -39,8 +39,45 @@ model Business {
   member             BusinessMember?
   feedbackSubmissions FeedbackSubmission[]
   aiUsageEvents      AiUsageEvent[]
+  reviewCards        ReviewCard[]
 
   @@map("businesses")
+}
+
+enum ReviewCardStatus {
+  unassigned
+  assigned
+  revoked
+}
+
+model ReviewCardBatch {
+  id        String       @id @default(uuid())
+  label     String
+  quantity  Int
+  createdAt DateTime     @default(now())
+  cards     ReviewCard[]
+
+  @@map("review_card_batches")
+}
+
+model ReviewCard {
+  id            String           @id @default(uuid())
+  batchId       String
+  batch         ReviewCardBatch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  token         String           @unique
+  serialInBatch Int
+  businessId    String?
+  business      Business?        @relation(fields: [businessId], references: [id], onDelete: SetNull)
+  status        ReviewCardStatus @default(unassigned)
+  assignedAt    DateTime?
+  revokedAt     DateTime?
+  lastScannedAt DateTime?
+  scanCount     Int              @default(0)
+  createdAt     DateTime         @default(now())
+
+  @@index([batchId, status])
+  @@index([businessId])
+  @@map("review_cards")
 }
 
 // Development bootstrap identity only. It is not an authentication mechanism.

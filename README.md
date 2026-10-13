@@ -531,3 +531,7 @@ The endpoint does not store feedback or drafts. It uses an in-memory limit of 10
 `POST /feedback` stores private customer feedback for ratings 1–3 only. `POST /review-drafts` still generates AI drafts and records usage plus a feedback row for insights.
 
 `POST /businesses` requires `portalUsername` and `portalPassword` and provisions a Clerk user for the business portal. In Clerk, enable **Username** as a sign-in identifier (password required) and keep public sign-up disabled. Session JWT should include `metadata` (and `username` if you add it to the session template). Admin routes `PATCH /businesses/:id/portal-user/credentials` reset password or username. Business-management and usage routes require platform admin. `GET /portal/*` requires an active business member. Seed platform admins with `PLATFORM_ADMIN_EMAIL` and `npm run db:seed`.
+
+## Physical review cards (NFC / QR)
+
+Pre-printed cards use stable URLs `WEB_APP_ORIGIN/go/{token}`. Platform admin creates batches via `POST /review-card-batches`, exports CSV and QR ZIP, then assigns cards to a business (`POST /businesses/:id/review-cards/assign`). Public `GET /review-cards/:token/resolve` returns redirect slug or status; the Next.js app serves `/go/{token}` and forwards to `/r/{slug}`. Set `WEB_APP_ORIGIN` to the public web URL (same as printed on cards). Optional `REVIEW_CARD_BATCH_MAX` (default 500). Digital per-business QR (`/r/{slug}`) is unchanged.

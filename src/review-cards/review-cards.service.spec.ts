@@ -1,0 +1,81 @@
+import { BadRequestException } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
+import { ReviewCardStatus } from '@prisma/client';
+import { ReviewCardsService } from './review-cards.service';
+import { PrismaService } from '../prisma/prisma.service';
+
+describe('ReviewCardsService', () => {
+  let service: ReviewCardsService;
+
+  const mockPrisma = {
+    reviewCardBatch: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      count: jest.fn(),
+    },
+    reviewCard: {
+      createMany: jest.fn(),
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      count: jest.fn(),
+      updateMany: jest.fn(),
+      update: jest.fn(),
+    },
+    business: {
+      findUnique: jest.fn(),
+    },
+    $transaction: jest.fn(),
+  };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        ReviewCardsService,
+        { provide: PrismaService, useValue: mockPrisma },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: (key: string) =>
+              key === 'WEB_APP_ORIGIN' ? 'http://localhost:3000' : undefined,
+          },
+        },
+      ],
+    }).compile();
+
+    service = module.get(ReviewCardsService);
+  });
+
+  it('rejects invalid batch quantity', async () => {
+    await expect(service.createBatch('batch', 0)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('resolves not_found for invalid token format', async () => {
+    const result = await service.resolveToken('!!');
+    expect(result).toEqual({ outcome: 'not_found' });
+  });
+
+  it('resolves unassigned card', async () => {
+    mockPrisma.reviewCard.findUnique.mockResolvedValue({
+      status: ReviewCardStatus.unassigned,
+      business: null,
+    });
+    const result = await service.resolveToken('abcd123456');
+    expect(result).toEqual({ outcome: 'unassigned' });
+  });
+
+  it('resolves redirect for active business', async () => {
+    mockPrisma.reviewCard.findUnique.mockResolvedValue({
+      id: 'card-1',
+      status: ReviewCardStatus.assigned,
+      business: { slug: 'test-shop', isActive: true },
+    });
+    mockPrisma.reviewCard.update.mockResolvedValue({});
+    const result = await service.resolveToken('abcd123456');
+    expect(result).toEqual({ outcome: 'redirect', slug: 'test-shop' });
+  });
+});
