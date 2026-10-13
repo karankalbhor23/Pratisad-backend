@@ -243,25 +243,11 @@ export class ReviewCardsService {
       orderBy: { serialInBatch: 'asc' },
     });
 
-    const mod: unknown = await import('archiver');
-    type ArchiverFactory = (
-      format: string,
-      options?: { zlib?: { level?: number } },
-    ) => Archiver;
-    let createArchive: ArchiverFactory;
-    if (typeof mod === 'function') {
-      createArchive = mod as ArchiverFactory;
-    } else if (
-      mod &&
-      typeof mod === 'object' &&
-      'default' in mod &&
-      typeof (mod as { default: unknown }).default === 'function'
-    ) {
-      createArchive = (mod as { default: ArchiverFactory }).default;
-    } else {
+    const { ZipArchive } = await import('archiver');
+    if (!ZipArchive) {
       throw new ServiceUnavailableException('ZIP export is unavailable.');
     }
-    const archive = createArchive('zip', { zlib: { level: 6 } });
+    const archive: Archiver = new ZipArchive({ zlib: { level: 6 } });
     const safeLabel = batch.label.replace(/[^a-zA-Z0-9._-]+/g, '_');
 
     for (const card of cards) {
