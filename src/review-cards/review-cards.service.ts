@@ -252,9 +252,16 @@ export class ReviewCardsService {
 
     for (const card of cards) {
       const url = this.cardUrl(card.token);
-      const png = await QRCode.toBuffer(url, { width: 512, margin: 2 });
+      const png = await QRCode.toBuffer(url, {
+        width: 512,
+        margin: 2,
+        color: {
+          dark: '#000000ff',
+          light: '#00000000',
+        },
+      });
       archive.append(png, {
-        name: `${safeLabel}-${card.serialInBatch}.png`,
+        name: `${safeLabel}-${card.token}.png`,
       });
     }
 
