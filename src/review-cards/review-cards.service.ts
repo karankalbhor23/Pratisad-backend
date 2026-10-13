@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ReviewCardStatus } from '@prisma/client';
+import type { Archiver } from 'archiver';
 import QRCode from 'qrcode';
 import { Readable } from 'stream';
 import { PrismaService } from '../prisma/prisma.service';
@@ -242,11 +243,24 @@ export class ReviewCardsService {
       orderBy: { serialInBatch: 'asc' },
     });
 
-    const archiverModule = await import('archiver');
-    const createArchive =
-      typeof archiverModule === 'function'
-        ? archiverModule
-        : archiverModule.default;
+    const mod: unknown = await import('archiver');
+    type ArchiverFactory = (
+      format: string,
+      options?: { zlib?: { level?: number } },
+    ) => Archiver;
+    let createArchive: ArchiverFactory;
+    if (typeof mod === 'function') {
+      createArchive = mod as ArchiverFactory;
+    } else if (
+      mod &&
+      typeof mod === 'object' &&
+      'default' in mod &&
+      typeof (mod as { default: unknown }).default === 'function'
+    ) {
+      createArchive = (mod as { default: ArchiverFactory }).default;
+    } else {
+      throw new ServiceUnavailableException('ZIP export is unavailable.');
+    }
     const archive = createArchive('zip', { zlib: { level: 6 } });
     const safeLabel = batch.label.replace(/[^a-zA-Z0-9._-]+/g, '_');
 
