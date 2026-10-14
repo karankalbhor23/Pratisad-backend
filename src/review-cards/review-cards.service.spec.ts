@@ -78,4 +78,28 @@ describe('ReviewCardsService', () => {
     const result = await service.resolveToken('abcd123456');
     expect(result).toEqual({ outcome: 'redirect', slug: 'test-shop' });
   });
+
+  it('assigns a revoked card to a business', async () => {
+    mockPrisma.business.findUnique.mockResolvedValue({ id: 'biz-1' });
+    mockPrisma.reviewCard.updateMany.mockResolvedValue({ count: 1 });
+    mockPrisma.reviewCard.findMany.mockResolvedValue([]);
+
+    const result = await service.assignToBusiness('biz-1', {
+      tokens: ['prucalitee'],
+    });
+
+    expect(mockPrisma.reviewCard.updateMany).toHaveBeenCalledWith({
+      where: {
+        token: 'prucalitee',
+        status: { in: [ReviewCardStatus.unassigned, ReviewCardStatus.revoked] },
+      },
+      data: expect.objectContaining({
+        status: ReviewCardStatus.assigned,
+        businessId: 'biz-1',
+        revokedAt: null,
+      }),
+    });
+    expect(result.assignedTokens).toEqual(['prucalitee']);
+    expect(result.errors).toEqual([]);
+  });
 });

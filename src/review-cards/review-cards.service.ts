@@ -22,6 +22,11 @@ import {
 
 const INSERT_CHUNK = 100;
 
+const ASSIGNABLE_STATUSES = [
+  ReviewCardStatus.unassigned,
+  ReviewCardStatus.revoked,
+];
+
 export type BatchListItem = {
   id: string;
   label: string;
@@ -337,16 +342,16 @@ export class ReviewCardsService {
       batches.map(async (batch) => ({
         batchId: batch.id,
         label: batch.label,
-        unassigned: await this.prisma.reviewCard.count({
+        available: await this.prisma.reviewCard.count({
           where: {
             batchId: batch.id,
-            status: ReviewCardStatus.unassigned,
+            status: { in: ASSIGNABLE_STATUSES },
           },
         }),
       })),
     );
-    const totalUnassigned = perBatch.reduce((sum, b) => sum + b.unassigned, 0);
-    return { totalUnassigned, batches: perBatch };
+    const totalAvailable = perBatch.reduce((sum, b) => sum + b.available, 0);
+    return { totalAvailable, batches: perBatch };
   }
 
   async assignToBusiness(
@@ -366,18 +371,18 @@ export class ReviewCardsService {
       const available = await this.prisma.reviewCard.count({
         where: {
           batchId: input.batchId,
-          status: ReviewCardStatus.unassigned,
+          status: { in: ASSIGNABLE_STATUSES },
         },
       });
       if (input.count > available) {
         throw new BadRequestException(
-          `Only ${available} unassigned card(s) available in this batch.`,
+          `Only ${available} available card(s) in this batch.`,
         );
       }
       const cards = await this.prisma.reviewCard.findMany({
         where: {
           batchId: input.batchId,
-          status: ReviewCardStatus.unassigned,
+          status: { in: ASSIGNABLE_STATUSES },
         },
         orderBy: { serialInBatch: 'asc' },
         take: input.count,
@@ -403,7 +408,7 @@ export class ReviewCardsService {
       const updated = await this.prisma.reviewCard.updateMany({
         where: {
           token,
-          status: ReviewCardStatus.unassigned,
+          status: { in: ASSIGNABLE_STATUSES },
         },
         data: {
           status: ReviewCardStatus.assigned,
@@ -423,8 +428,6 @@ export class ReviewCardsService {
       });
       if (!existing) {
         errors.push({ token, message: 'Card not found.' });
-      } else if (existing.status === ReviewCardStatus.revoked) {
-        errors.push({ token, message: 'Card is revoked and cannot be reassigned.' });
       } else if (existing.status === ReviewCardStatus.assigned) {
         errors.push({ token, message: 'Card is already assigned.' });
       } else {
