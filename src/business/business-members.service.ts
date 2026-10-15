@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { createClerkClient } from '@clerk/backend';
 import { BusinessMemberStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { formatClerkError } from './clerk-error.util';
 import {
   assertPortalPassword,
   normalizePortalUsername,
@@ -65,26 +66,31 @@ export class BusinessMembersService {
       businessId,
     );
 
-    const now = new Date();
-    const member = await this.prisma.businessMember.upsert({
-      where: { businessId },
-      create: {
-        businessId,
-        username: normalizedUsername,
-        clerkUserId,
-        status: BusinessMemberStatus.active,
-        acceptedAt: now,
-      },
-      update: {
-        username: normalizedUsername,
-        clerkUserId,
-        email: null,
-        status: BusinessMemberStatus.active,
-        acceptedAt: now,
-      },
-    });
+    try {
+      const now = new Date();
+      const member = await this.prisma.businessMember.upsert({
+        where: { businessId },
+        create: {
+          businessId,
+          username: normalizedUsername,
+          clerkUserId,
+          status: BusinessMemberStatus.active,
+          acceptedAt: now,
+        },
+        update: {
+          username: normalizedUsername,
+          clerkUserId,
+          email: null,
+          status: BusinessMemberStatus.active,
+          acceptedAt: now,
+        },
+      });
 
-    return this.toStatusDto(member);
+      return this.toStatusDto(member);
+    } catch (error) {
+      await this.deleteClerkUser(clerkUserId);
+      throw error;
+    }
   }
 
   async resetPortalCredentials(
@@ -132,10 +138,12 @@ export class BusinessMembersService {
           businessId,
         },
       });
-    } catch {
-      throw new ConflictException(
-        'Could not update portal credentials. Check username and password rules.',
-      );
+    } catch (error: unknown) {
+      const status = (error as { status?: number })?.status;
+      if (status === 422 || status === 409) {
+        throw new ConflictException(formatClerkError(error));
+      }
+      throw new BadRequestException(formatClerkError(error));
     }
 
     const updated = await this.prisma.businessMember.update({
@@ -245,12 +253,23 @@ export class BusinessMembersService {
       return user.id;
     } catch (error: unknown) {
       const status = (error as { status?: number })?.status;
+      const message = formatClerkError(error);
       if (status === 422 || status === 409) {
-        throw new ConflictException(
-          'Could not create portal user. Username may be taken or password does not meet Clerk rules.',
-        );
+        throw new ConflictException(message);
       }
-      throw new BadRequestException('Could not create portal user in Clerk.');
+      throw new BadRequestException(message);
+    }
+  }
+
+  private async deleteClerkUser(clerkUserId: string): Promise<void> {
+    const secretKey = this.config.get<string>('CLERK_SECRET_KEY');
+    if (!secretKey) return;
+
+    const clerk = createClerkClient({ secretKey });
+    try {
+      await clerk.users.deleteUser(clerkUserId);
+    } catch {
+      // Best-effort cleanup so a failed DB write does not leave orphan Clerk users.
     }
   }
 

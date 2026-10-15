@@ -16,4 +16,11 @@ describe('portal-username.util', () => {
   it('requires password length', () => {
     expect(() => assertPortalPassword('short')).toThrow(BadRequestException);
   });
+
+  it('requires mixed password characters', () => {
+    expect(() => assertPortalPassword('password123')).toThrow(
+      BadRequestException,
+    );
+    expect(() => assertPortalPassword('Password1!')).not.toThrow();
+  });
 });

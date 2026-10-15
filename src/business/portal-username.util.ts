@@ -18,4 +18,18 @@ export function assertPortalPassword(password: string): void {
       'Portal password must be at least 8 characters.',
     );
   }
+  if (password.length > 128) {
+    throw new BadRequestException(
+      'Portal password must be at most 128 characters.',
+    );
+  }
+  const hasLower = /[a-z]/.test(password);
+  const hasUpper = /[A-Z]/.test(password);
+  const hasDigit = /\d/.test(password);
+  const hasSymbol = /[^A-Za-z0-9]/.test(password);
+  if (!(hasLower && hasUpper && hasDigit && hasSymbol)) {
+    throw new BadRequestException(
+      'Portal password must include uppercase, lowercase, a number, and a symbol.',
+    );
+  }
 }
