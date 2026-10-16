@@ -38,7 +38,7 @@ describe('ReviewDraftsService', () => {
       keywordsRatingHigh: [],
     });
     config.get = jest.fn((key: string) =>
-      key === 'OPENROUTER_API_KEY' ? 'test-key' : 'test-model',
+      key === 'GEMINI_API_KEY' ? 'test-key' : undefined,
     );
   });
 
@@ -48,7 +48,7 @@ describe('ReviewDraftsService', () => {
       status: 200,
       json: () =>
         Promise.resolve({
-          choices: [{ message: { content: ' Draft text. ' } }],
+          candidates: [{ content: { parts: [{ text: ' Draft text. ' }] } }],
         }),
     });
     await expect(service.create(input)).resolves.toEqual({
@@ -61,8 +61,9 @@ describe('ReviewDraftsService', () => {
       true,
     );
     expect(global.fetch).toHaveBeenCalledWith(
-      expect.any(String),
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent',
       expect.objectContaining({
+        headers: expect.objectContaining({ 'x-goog-api-key': 'test-key' }),
         body: expect.any(String),
       }),
     );
@@ -70,31 +71,32 @@ describe('ReviewDraftsService', () => {
       body: string;
     };
     const body = JSON.parse(requestInit.body) as {
-      temperature: number;
-      max_tokens: number;
-      reasoning: { enabled: boolean };
-      messages: Array<{ role: string; content: string }>;
+      systemInstruction: { parts: Array<{ text: string }> };
+      contents: Array<{ role: string; parts: Array<{ text: string }> }>;
+      generationConfig: { temperature: number; maxOutputTokens: number };
     };
-    expect(body.temperature).toBe(0.5);
-    expect(body.max_tokens).toBe(320);
-    expect(body.reasoning).toEqual({ enabled: false });
-    expect(body.messages).toHaveLength(2);
-    expect(body.messages[0]).toEqual(
-      expect.objectContaining({ role: 'system', content: expect.any(String) }),
+    expect(body.generationConfig.temperature).toBe(0.5);
+    expect(body.generationConfig.maxOutputTokens).toBe(320);
+    expect(body.systemInstruction.parts[0].text).toContain(
+      'Category, Setting, Vocabulary',
     );
-    expect(body.messages[0].content).toContain('Category, Setting, Vocabulary');
-    expect(body.messages[0].content).toContain('prefer omitting locality');
-    expect(body.messages[1].role).toBe('user');
-    expect(body.messages[1].content).toContain('Business: Test Business');
-    expect(body.messages[1].content).toContain(
+    expect(body.systemInstruction.parts[0].text).toContain(
+      'prefer omitting locality',
+    );
+    expect(body.contents).toHaveLength(1);
+    expect(body.contents[0].role).toBe('user');
+    expect(body.contents[0].parts[0].text).toContain('Business: Test Business');
+    expect(body.contents[0].parts[0].text).toContain(
       'Business context: A neighborhood cafe',
     );
-    expect(body.messages[1].content).toContain('Rating: 2/5 (negative)');
-    expect(body.messages[1].content).toContain(
+    expect(body.contents[0].parts[0].text).toContain('Rating: 2/5 (negative)');
+    expect(body.contents[0].parts[0].text).toContain(
       'Experience themes: Poor experience',
     );
-    expect(body.messages[1].content).toContain('Customer comment: Too slow.');
-    expect(body.messages[1].content).toContain('Draft note:');
+    expect(body.contents[0].parts[0].text).toContain(
+      'Customer comment: Too slow.',
+    );
+    expect(body.contents[0].parts[0].text).toContain('Draft note:');
   });
 
   it('rejects keywords that are not allowed for the rating band', async () => {
@@ -130,7 +132,7 @@ describe('ReviewDraftsService', () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
-      json: () => Promise.resolve({ choices: [] }),
+      json: () => Promise.resolve({ candidates: [] }),
     });
     await expect(service.create(input)).rejects.toBeInstanceOf(
       BadGatewayException,
@@ -142,7 +144,10 @@ describe('ReviewDraftsService', () => {
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
         status: 200,
-        json: () => Promise.resolve({ choices: [{ message: { content } }] }),
+        json: () =>
+          Promise.resolve({
+            candidates: [{ content: { parts: [{ text: content }] } }],
+          }),
       });
       await expect(service.create(input)).rejects.toMatchObject({
         status: 502,

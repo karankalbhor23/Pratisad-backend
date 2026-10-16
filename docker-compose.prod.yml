@@ -18,6 +18,6 @@ services:
       DATABASE_URL: "postgresql://pratisad_user:${POSTGRES_PASSWORD}@postgres:5432/pratisad_db?schema=public"
       CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
       PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL}
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
-      OPENROUTER_MODEL: ${OPENROUTER_MODEL}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.1-flash-lite}
       E2E_AUTH_BYPASS: "false"

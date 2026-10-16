@@ -16,7 +16,9 @@ import {
 import { FeedbackRecordService } from '../feedback/feedback-record.service';
 import { CreateReviewDraftDto } from './dto/create-review-draft.dto';
 
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const GEMINI_API_BASE =
+  'https://generativelanguage.googleapis.com/v1beta/models';
+const DEFAULT_GEMINI_MODEL = 'gemini-3.1-flash-lite';
 const REQUEST_TIMEOUT_MS = 30_000;
 
 const SYSTEM_PROMPT = `You are Pratisad's review-writing assistant. Write one authentic, first-person Google-style review draft (about 2–4 sentences) from the customer's rating, experience themes, and optional comment. Sound like an ordinary customer—not a marketer, owner, or copywriter.
@@ -94,34 +96,37 @@ export class ReviewDraftsService {
     );
     assertKeywordsForRating(business, input.rating, input.keywords);
 
-    const apiKey = this.config.get<string>('OPENROUTER_API_KEY');
-    const model = this.config.get<string>('OPENROUTER_MODEL');
-    if (!apiKey || !model)
+    const apiKey = this.config.get<string>('GEMINI_API_KEY');
+    const model =
+      this.config.get<string>('GEMINI_MODEL') ?? DEFAULT_GEMINI_MODEL;
+    if (!apiKey)
       throw new ServiceUnavailableException(
         'Review drafting is temporarily unavailable.',
       );
 
+    const geminiUrl = `${GEMINI_API_BASE}/${model}:generateContent`;
     let response: Response;
     try {
-      response = await fetch(OPENROUTER_URL, {
+      response = await fetch(geminiUrl, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${apiKey}`,
+          'x-goog-api-key': apiKey,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model,
-          temperature: 0.5,
-          max_tokens: 320,
-          // Nemotron via OpenRouter ignores effort:"none"; enabled:false is required.
-          reasoning: { enabled: false },
-          messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
+          systemInstruction: {
+            parts: [{ text: SYSTEM_PROMPT }],
+          },
+          contents: [
             {
               role: 'user',
-              content: buildUserPrompt(input, business),
+              parts: [{ text: buildUserPrompt(input, business) }],
             },
           ],
+          generationConfig: {
+            temperature: 0.5,
+            maxOutputTokens: 320,
+          },
         }),
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
@@ -157,8 +162,12 @@ export class ReviewDraftsService {
       );
     }
     const draft = (
-      data as { choices?: Array<{ message?: { content?: unknown } }> }
-    )?.choices?.[0]?.message?.content;
+      data as {
+        candidates?: Array<{
+          content?: { parts?: Array<{ text?: unknown }> };
+        }>;
+      }
+    )?.candidates?.[0]?.content?.parts?.[0]?.text;
     if (typeof draft !== 'string' || !draft.trim())
       throw new BadGatewayException(
         'Review drafting returned an invalid response.',

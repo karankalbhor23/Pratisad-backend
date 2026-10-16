@@ -520,7 +520,7 @@ All error responses follow a consistent structure:
 
 `POST /review-drafts` creates an editable draft from customer-provided feedback. It accepts `businessSlug`, an integer `rating` from 1 to 5, one to ten keyword strings (each must be allowed for that business and rating band: 1–3 vs 4–5), and an optional comment up to 1000 characters. A successful response is `{ "draft": "..." }`. Draft prompts use `localContext`, not `description`.
 
-Set `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` (an OpenRouter-supported model ID) in the server environment. Tests mock `fetch`, so they do not need a real API key or provider request.
+Set `GEMINI_API_KEY` in the server environment. Optionally set `GEMINI_MODEL` (defaults to `gemini-3.1-flash-lite`). Tests mock `fetch`, so they do not need a real API key or provider request.
 
 The endpoint does not store feedback or drafts. It uses an in-memory limit of 10 requests per IP per minute; this only protects a single application instance. Production deployments should apply shared rate limiting at the edge or with a distributed store.
 
