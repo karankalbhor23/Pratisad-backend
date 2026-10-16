@@ -32,6 +32,7 @@ describe('ReviewDraftsService', () => {
   beforeEach(() => {
     jest.resetAllMocks();
     businessService.findBySlug = jest.fn().mockResolvedValue({
+      id: 'business-id',
       name: 'Test Business',
       localContext: 'A neighborhood cafe',
       keywordsRatingLow: [],
@@ -73,10 +74,15 @@ describe('ReviewDraftsService', () => {
     const body = JSON.parse(requestInit.body) as {
       systemInstruction: { parts: Array<{ text: string }> };
       contents: Array<{ role: string; parts: Array<{ text: string }> }>;
-      generationConfig: { temperature: number; maxOutputTokens: number };
+      generationConfig: {
+        maxOutputTokens: number;
+        thinkingConfig: { thinkingLevel: string };
+      };
     };
-    expect(body.generationConfig.temperature).toBe(0.5);
     expect(body.generationConfig.maxOutputTokens).toBe(320);
+    expect(body.generationConfig.thinkingConfig).toEqual({
+      thinkingLevel: 'low',
+    });
     expect(body.systemInstruction.parts[0].text).toContain(
       'Category, Setting, Vocabulary',
     );
@@ -165,6 +171,34 @@ describe('ReviewDraftsService', () => {
     },
   );
 
+  it('falls back when the preferred model is temporarily unavailable', async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 503 })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            candidates: [{ content: { parts: [{ text: 'Fallback draft.' }] } }],
+          }),
+      });
+    await expect(service.create(input)).resolves.toEqual({
+      draft: 'Fallback draft.',
+    });
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      2,
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent',
+      expect.any(Object),
+    );
+    expect(feedbackRecord.recordAiUsage).toHaveBeenCalledWith(
+      'business-id',
+      'gemini-3-flash-preview',
+      true,
+    );
+  });
+
   it('maps provider rate limits, network failures, and invalid JSON safely', async () => {
     global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 429 });
     await expect(service.create(input)).rejects.toMatchObject({
@@ -178,6 +212,14 @@ describe('ReviewDraftsService', () => {
       json: () => Promise.reject(new Error('json')),
     });
     await expect(service.create(input)).rejects.toMatchObject({ status: 502 });
+  });
+
+  it('maps sustained provider unavailability safely', async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 503 });
+    await expect(service.create(input)).rejects.toMatchObject({
+      status: 503,
+    } as ServiceUnavailableException);
+    expect(global.fetch).toHaveBeenCalledTimes(3);
   });
 
   it('maps provider timeouts safely', async () => {
