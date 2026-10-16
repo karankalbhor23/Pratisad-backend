@@ -178,6 +178,35 @@ export class BusinessService {
     };
   }
 
+  async getFeedbackSummary(businessId: string): Promise<{
+    total: number;
+    privateCount: number;
+    unreadPrivateCount: number;
+  }> {
+    await this.findOne(businessId);
+    const [total, privateCount, unreadPrivateCount] = await Promise.all([
+      this.prisma.feedbackSubmission.count({ where: { businessId } }),
+      this.prisma.feedbackSubmission.count({
+        where: { businessId, isPrivate: true },
+      }),
+      this.prisma.feedbackSubmission.count({
+        where: { businessId, isPrivate: true, readAt: null },
+      }),
+    ]);
+    return { total, privateCount, unreadPrivateCount };
+  }
+
+  async clearFeedback(businessId: string): Promise<{ deletedCount: number }> {
+    await this.findOne(businessId);
+    const result = await this.prisma.feedbackSubmission.deleteMany({
+      where: { businessId },
+    });
+    this.logger.log(
+      `Cleared ${result.count} feedback submissions for business ${businessId}`,
+    );
+    return { deletedCount: result.count };
+  }
+
   async update(
     id: string,
     updateBusinessDto: UpdateBusinessDto,

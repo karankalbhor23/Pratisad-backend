@@ -28,6 +28,11 @@ describe('BusinessService', () => {
       findFirst: jest.fn(),
       update: jest.fn(),
       count: jest.fn(),
+      delete: jest.fn(),
+    },
+    feedbackSubmission: {
+      count: jest.fn(),
+      deleteMany: jest.fn(),
     },
   };
 
@@ -302,6 +307,47 @@ describe('BusinessService', () => {
       await expect(
         service.findPublicBySlug('non-existent-slug'),
       ).rejects.toThrow('Business not found');
+    });
+  });
+
+  describe('feedback admin', () => {
+    it('returns feedback summary for a business', async () => {
+      mockPrismaService.business.findUnique.mockResolvedValue(mockBusiness);
+      mockPrismaService.feedbackSubmission.count
+        .mockResolvedValueOnce(12)
+        .mockResolvedValueOnce(5)
+        .mockResolvedValueOnce(2);
+
+      await expect(service.getFeedbackSummary(mockBusiness.id)).resolves.toEqual({
+        total: 12,
+        privateCount: 5,
+        unreadPrivateCount: 2,
+      });
+    });
+
+    it('clears all feedback for a business', async () => {
+      mockPrismaService.business.findUnique.mockResolvedValue(mockBusiness);
+      mockPrismaService.feedbackSubmission.deleteMany.mockResolvedValue({
+        count: 7,
+      });
+
+      await expect(service.clearFeedback(mockBusiness.id)).resolves.toEqual({
+        deletedCount: 7,
+      });
+      expect(mockPrismaService.feedbackSubmission.deleteMany).toHaveBeenCalledWith(
+        { where: { businessId: mockBusiness.id } },
+      );
+    });
+
+    it('throws when clearing feedback for a missing business', async () => {
+      mockPrismaService.business.findUnique.mockResolvedValue(null);
+
+      await expect(service.clearFeedback('missing-id')).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(
+        mockPrismaService.feedbackSubmission.deleteMany,
+      ).not.toHaveBeenCalled();
     });
   });
 

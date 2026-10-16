@@ -13,6 +13,7 @@ import {
 import { PlatformAdminGuard } from '../auth/platform-admin.guard';
 import { AiUsageService } from './ai-usage.service';
 import { BusinessMembersService } from './business-members.service';
+import { BusinessService } from './business.service';
 import { ProvisionPortalUserDto } from './dto/provision-portal-user.dto';
 import { ResetPortalCredentialsDto } from './dto/reset-portal-credentials.dto';
 
@@ -21,6 +22,7 @@ export class BusinessAdminController {
   constructor(
     private readonly members: BusinessMembersService,
     private readonly aiUsage: AiUsageService,
+    private readonly business: BusinessService,
   ) {}
 
   @Get(':id/portal-user')
@@ -66,5 +68,19 @@ export class BusinessAdminController {
   @UseGuards(PlatformAdminGuard)
   getUsage(@Param('id') id: string) {
     return this.aiUsage.getUsageForBusiness(id);
+  }
+
+  @Get(':id/feedback/summary')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(PlatformAdminGuard)
+  getFeedbackSummary(@Param('id') id: string) {
+    return this.business.getFeedbackSummary(id);
+  }
+
+  @Delete(':id/feedback')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(PlatformAdminGuard)
+  clearFeedback(@Param('id') id: string) {
+    return this.business.clearFeedback(id);
   }
 }
