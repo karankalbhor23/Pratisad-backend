@@ -18,7 +18,7 @@ import { CreateReviewDraftDto } from './dto/create-review-draft.dto';
 
 const GEMINI_API_BASE =
   'https://generativelanguage.googleapis.com/v1beta/models';
-const DEFAULT_GEMINI_MODEL = 'gemini-3.1-flash-lite';
+const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
 const REQUEST_TIMEOUT_MS = 30_000;
 
 const SYSTEM_PROMPT = `You are Pratisad's review-writing assistant. Write one authentic, first-person Google-style review draft (about 2–4 sentences) from the customer's rating, experience themes, and optional comment. Sound like an ordinary customer—not a marketer, owner, or copywriter.

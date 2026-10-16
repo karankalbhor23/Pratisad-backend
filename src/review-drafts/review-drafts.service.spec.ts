@@ -61,7 +61,7 @@ describe('ReviewDraftsService', () => {
       true,
     );
     expect(global.fetch).toHaveBeenCalledWith(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent',
       expect.objectContaining({
         headers: expect.objectContaining({ 'x-goog-api-key': 'test-key' }),
         body: expect.any(String),
