@@ -24,6 +24,8 @@ const GEMINI_FALLBACK_MODELS = [
   'gemini-3.1-flash-lite',
 ];
 const REQUEST_TIMEOUT_MS = 30_000;
+// Thinking tokens count toward maxOutputTokens, so keep headroom for 2-4 sentences.
+const MAX_OUTPUT_TOKENS = 1024;
 
 const SYSTEM_PROMPT = `You are Pratisad's review-writing assistant. Write one authentic, first-person Google-style review draft (about 2–4 sentences) from the customer's rating, experience themes, and optional comment. Sound like an ordinary customer—not a marketer, owner, or copywriter.
 
@@ -94,14 +96,28 @@ function resolveGeminiModels(preferredModel: string): string[] {
 }
 
 function extractGeminiDraft(data: unknown): string | null {
-  const draft = (
+  const candidate = (
     data as {
       candidates?: Array<{
-        content?: { parts?: Array<{ text?: unknown }> };
+        content?: { parts?: Array<{ text?: unknown; thought?: boolean }> };
       }>;
     }
-  )?.candidates?.[0]?.content?.parts?.[0]?.text;
-  return typeof draft === 'string' && draft.trim() ? draft.trim() : null;
+  )?.candidates?.[0];
+  const parts = candidate?.content?.parts;
+  if (!parts?.length) return null;
+
+  const responseText = parts
+    .filter((part) => !part.thought && typeof part.text === 'string')
+    .map((part) => part.text as string)
+    .join('')
+    .trim();
+  if (responseText) return responseText;
+
+  const fallbackText = parts
+    .map((part) => (typeof part.text === 'string' ? part.text : ''))
+    .join('')
+    .trim();
+  return fallbackText || null;
 }
 
 @Injectable()
@@ -138,7 +154,7 @@ export class ReviewDraftsService {
         },
       ],
       generationConfig: {
-        maxOutputTokens: 320,
+        maxOutputTokens: MAX_OUTPUT_TOKENS,
         thinkingConfig: {
           thinkingLevel: 'low',
         },

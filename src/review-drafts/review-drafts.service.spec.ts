@@ -79,7 +79,7 @@ describe('ReviewDraftsService', () => {
         thinkingConfig: { thinkingLevel: string };
       };
     };
-    expect(body.generationConfig.maxOutputTokens).toBe(320);
+    expect(body.generationConfig.maxOutputTokens).toBe(1024);
     expect(body.generationConfig.thinkingConfig).toEqual({
       thinkingLevel: 'low',
     });
@@ -170,6 +170,29 @@ describe('ReviewDraftsService', () => {
       });
     },
   );
+
+  it('uses non-thought response parts when the provider returns thinking output', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          candidates: [
+            {
+              content: {
+                parts: [
+                  { thought: true, text: 'Internal reasoning summary.' },
+                  { text: 'Great food and friendly staff.' },
+                ],
+              },
+            },
+          ],
+        }),
+    });
+    await expect(service.create(input)).resolves.toEqual({
+      draft: 'Great food and friendly staff.',
+    });
+  });
 
   it('falls back when the preferred model is temporarily unavailable', async () => {
     global.fetch = jest
