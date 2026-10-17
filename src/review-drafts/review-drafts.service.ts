@@ -18,13 +18,12 @@ import { CreateReviewDraftDto } from './dto/create-review-draft.dto';
 
 const GEMINI_API_BASE =
   'https://generativelanguage.googleapis.com/v1beta/models';
-const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
+const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash-lite';
 const GEMINI_FALLBACK_MODELS = [
-  'gemini-3-flash-preview',
-  'gemini-3.1-flash-lite',
+  'gemini-2.5-flash',
+  'gemini-2.0-flash',
 ];
 const REQUEST_TIMEOUT_MS = 30_000;
-// Thinking tokens count toward maxOutputTokens, so keep headroom for 2-4 sentences.
 const MAX_OUTPUT_TOKENS = 1024;
 
 const SYSTEM_PROMPT = `You are Pratisad's review-writing assistant. Write one authentic, first-person Google-style review draft (about 2–4 sentences) from the customer's rating, experience themes, and optional comment. Sound like an ordinary customer—not a marketer, owner, or copywriter.
@@ -156,7 +155,7 @@ export class ReviewDraftsService {
       generationConfig: {
         maxOutputTokens: MAX_OUTPUT_TOKENS,
         thinkingConfig: {
-          thinkingLevel: 'low',
+          thinkingBudget: 0,
         },
       },
     });

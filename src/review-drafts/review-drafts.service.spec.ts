@@ -62,7 +62,7 @@ describe('ReviewDraftsService', () => {
       true,
     );
     expect(global.fetch).toHaveBeenCalledWith(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent',
       expect.objectContaining({
         headers: expect.objectContaining({ 'x-goog-api-key': 'test-key' }),
         body: expect.any(String),
@@ -76,12 +76,12 @@ describe('ReviewDraftsService', () => {
       contents: Array<{ role: string; parts: Array<{ text: string }> }>;
       generationConfig: {
         maxOutputTokens: number;
-        thinkingConfig: { thinkingLevel: string };
+        thinkingConfig: { thinkingBudget: number };
       };
     };
     expect(body.generationConfig.maxOutputTokens).toBe(1024);
     expect(body.generationConfig.thinkingConfig).toEqual({
-      thinkingLevel: 'low',
+      thinkingBudget: 0,
     });
     expect(body.systemInstruction.parts[0].text).toContain(
       'Category, Setting, Vocabulary',
@@ -212,12 +212,12 @@ describe('ReviewDraftsService', () => {
     expect(global.fetch).toHaveBeenCalledTimes(2);
     expect(global.fetch).toHaveBeenNthCalledWith(
       2,
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
       expect.any(Object),
     );
     expect(feedbackRecord.recordAiUsage).toHaveBeenCalledWith(
       'business-id',
-      'gemini-3-flash-preview',
+      'gemini-2.5-flash',
       true,
     );
   });
