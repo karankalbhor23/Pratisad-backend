@@ -18,10 +18,10 @@ import { CreateReviewDraftDto } from './dto/create-review-draft.dto';
 
 const GEMINI_API_BASE =
   'https://generativelanguage.googleapis.com/v1beta/models';
-const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash-lite';
+const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash-lite';
 const GEMINI_FALLBACK_MODELS = [
-  'gemini-2.5-flash',
-  'gemini-2.0-flash',
+  'gemini-3.1-flash-lite',
+  'gemini-3-flash-preview',
 ];
 const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_OUTPUT_TOKENS = 1024;
@@ -154,9 +154,6 @@ export class ReviewDraftsService {
       ],
       generationConfig: {
         maxOutputTokens: MAX_OUTPUT_TOKENS,
-        thinkingConfig: {
-          thinkingBudget: 0,
-        },
       },
     });
 
@@ -203,10 +200,7 @@ export class ReviewDraftsService {
         sawUnavailable = true;
         continue;
       }
-      if (!response.ok)
-        throw new BadGatewayException(
-          'Review drafting is temporarily unavailable.',
-        );
+      if (!response.ok) continue;
 
       let data: unknown;
       try {

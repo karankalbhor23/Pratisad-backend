@@ -19,5 +19,5 @@ services:
       CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
       PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash-lite}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
       E2E_AUTH_BYPASS: "false"
