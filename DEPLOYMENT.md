@@ -143,7 +143,11 @@ Google shows this when the **client_id in the sign-in URL is wrong or unknown**.
    ```bash
    cd /root/pratisad-api && docker compose -f docker-compose.vps.yml up -d --force-recreate
    ```
-6. Check API container logs (`docker logs pratisad-api`) for `Google OAuth client ID misconfigured` — details are server-side only, not shown in the portal.
+6. Check API container logs (`docker logs pratisad-api --since 10m`) after one connect attempt. Look for:
+   - `Google OAuth callback missing params` — Google did not send `code`/`state` (proxy stripping query string, wrong redirect URI host, or user cancelled).
+   - `Google OAuth callback failed (encryption)` — set `GOOGLE_TOKEN_ENCRYPTION_KEY` and recreate container.
+   - `Google OAuth callback failed (refresh_token)` — revoke app at myaccount.google.com/permissions and reconnect.
+   - `Google OAuth callback completed successfully` — connection saved; use **Load locations** in portal.
 
 If the client was deleted in Google Cloud, create a new Web OAuth client and update both env vars.
 
