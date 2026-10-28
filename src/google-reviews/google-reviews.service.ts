@@ -123,8 +123,19 @@ export class GoogleReviewsService {
     await this.assertAllowed(businessId);
 
     const accessToken = tokens.access_token;
-    const accounts = await this.googleApi.listAccounts(accessToken);
-    const primary = accounts[0];
+    let primaryAccountName: string | null = null;
+    let primaryAccountEmail: string | null = null;
+    try {
+      const accounts = await this.googleApi.listAccounts(accessToken);
+      const primary = accounts[0];
+      primaryAccountName = primary?.name ?? null;
+      primaryAccountEmail = primary?.accountName ?? null;
+    } catch (error) {
+      this.logger.warn(
+        `listAccounts after OAuth failed for business ${businessId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
     const encryptedRefresh = this.cipher.encrypt(tokens.refresh_token!);
     const encryptedAccess = this.cipher.encrypt(accessToken);
     const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);
@@ -133,24 +144,28 @@ export class GoogleReviewsService {
       where: { businessId },
       create: {
         businessId,
-        googleAccountEmail: primary?.accountName ?? null,
-        googleAccountName: primary?.name ?? null,
+        googleAccountEmail: primaryAccountEmail,
+        googleAccountName: primaryAccountName,
         refreshTokenEncrypted: encryptedRefresh,
         accessTokenEncrypted: encryptedAccess,
         accessTokenExpiresAt: expiresAt,
         scopes: tokens.scope ?? null,
         disconnectedAt: null,
-        lastError: null,
+        lastError: primaryAccountName
+          ? null
+          : 'Could not list Google accounts. Enable Account Management API or use Load locations after reconnecting.',
       },
       update: {
-        googleAccountEmail: primary?.accountName ?? null,
-        googleAccountName: primary?.name ?? null,
+        googleAccountEmail: primaryAccountEmail,
+        googleAccountName: primaryAccountName,
         refreshTokenEncrypted: encryptedRefresh,
         accessTokenEncrypted: encryptedAccess,
         accessTokenExpiresAt: expiresAt,
         scopes: tokens.scope ?? null,
         disconnectedAt: null,
-        lastError: null,
+        lastError: primaryAccountName
+          ? null
+          : 'Could not list Google accounts. Enable Account Management API or use Load locations after reconnecting.',
         tokenVersion: { increment: 1 },
       },
     });
@@ -161,10 +176,25 @@ export class GoogleReviewsService {
   async listLocations(businessId: string) {
     await this.assertAllowed(businessId);
     const accessToken = await this.getValidAccessToken(businessId);
-    const connection = await this.requireConnection(businessId);
-    const accountName = connection.googleAccountName;
+    let connection = await this.requireConnection(businessId);
+    let accountName = connection.googleAccountName;
     if (!accountName) {
-      throw new BadRequestException('Google account is not linked. Reconnect Google.');
+      const accounts = await this.googleApi.listAccounts(accessToken);
+      const primary = accounts[0];
+      if (!primary?.name) {
+        throw new BadRequestException(
+          'No Google Business account found for this Google user.',
+        );
+      }
+      accountName = primary.name;
+      connection = await this.prisma.googleBusinessConnection.update({
+        where: { businessId },
+        data: {
+          googleAccountName: primary.name,
+          googleAccountEmail: primary.accountName ?? null,
+          lastError: null,
+        },
+      });
     }
     const locations = await this.googleApi.listLocations(accessToken, accountName);
     return locations.map((loc) => ({

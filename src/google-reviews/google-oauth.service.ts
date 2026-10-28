@@ -204,7 +204,10 @@ export class GoogleOAuthService {
       error?: string;
     };
     if (!response.ok) {
-      throw new BadRequestException(data.error ?? 'OAuth code exchange failed');
+      const detail = [data.error, (data as { error_description?: string }).error_description]
+        .filter(Boolean)
+        .join(': ');
+      throw new BadRequestException(detail || 'OAuth code exchange failed');
     }
     return data;
   }
