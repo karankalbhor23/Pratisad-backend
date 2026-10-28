@@ -16,6 +16,7 @@ import {
   GoogleApiError,
   GoogleBusinessApiClient,
 } from './google-business-api.client';
+import { userMessageForGoogleApiError } from './google-api-user-messages';
 import { GoogleOAuthService } from './google-oauth.service';
 import { GoogleReplyGeneratorService } from './google-reply-generator.service';
 import {
@@ -153,7 +154,7 @@ export class GoogleReviewsService {
         disconnectedAt: null,
         lastError: primaryAccountName
           ? null
-          : 'Could not list Google accounts. Enable Account Management API or use Load locations after reconnecting.',
+          : 'Could not list Google Business accounts. Request GBP API access in Google Cloud if quota is 0 (see DEPLOYMENT.md).',
       },
       update: {
         googleAccountEmail: primaryAccountEmail,
@@ -165,7 +166,7 @@ export class GoogleReviewsService {
         disconnectedAt: null,
         lastError: primaryAccountName
           ? null
-          : 'Could not list Google accounts. Enable Account Management API or use Load locations after reconnecting.',
+          : 'Could not list Google Business accounts. Request GBP API access in Google Cloud if quota is 0 (see DEPLOYMENT.md).',
         tokenVersion: { increment: 1 },
       },
     });
@@ -178,30 +179,41 @@ export class GoogleReviewsService {
     const accessToken = await this.getValidAccessToken(businessId);
     let connection = await this.requireConnection(businessId);
     let accountName = connection.googleAccountName;
-    if (!accountName) {
-      const accounts = await this.googleApi.listAccounts(accessToken);
-      const primary = accounts[0];
-      if (!primary?.name) {
-        throw new BadRequestException(
-          'No Google Business account found for this Google user.',
-        );
+    try {
+      if (!accountName) {
+        const accounts = await this.googleApi.listAccounts(accessToken);
+        const primary = accounts[0];
+        if (!primary?.name) {
+          throw new BadRequestException(
+            'No Google Business account found for this Google user. Use the Google account that manages the business on Google Business Profile.',
+          );
+        }
+        accountName = primary.name;
+        connection = await this.prisma.googleBusinessConnection.update({
+          where: { businessId },
+          data: {
+            googleAccountName: primary.name,
+            googleAccountEmail: primary.accountName ?? null,
+            lastError: null,
+          },
+        });
       }
-      accountName = primary.name;
-      connection = await this.prisma.googleBusinessConnection.update({
-        where: { businessId },
-        data: {
-          googleAccountName: primary.name,
-          googleAccountEmail: primary.accountName ?? null,
-          lastError: null,
-        },
-      });
+      const locations = await this.googleApi.listLocations(accessToken, accountName);
+      return locations.map((loc) => ({
+        name: loc.name,
+        title: loc.title ?? loc.name,
+        addressLines: loc.storefrontAddress?.addressLines ?? [],
+      }));
+    } catch (error) {
+      const message = userMessageForGoogleApiError(error);
+      if (error instanceof GoogleApiError) {
+        await this.prisma.googleBusinessConnection.update({
+          where: { businessId },
+          data: { lastError: message.slice(0, 500) },
+        });
+      }
+      throw new BadRequestException(message);
     }
-    const locations = await this.googleApi.listLocations(accessToken, accountName);
-    return locations.map((loc) => ({
-      name: loc.name,
-      title: loc.title ?? loc.name,
-      addressLines: loc.storefrontAddress?.addressLines ?? [],
-    }));
   }
 
   async setLocation(

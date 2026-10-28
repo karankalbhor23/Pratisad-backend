@@ -100,10 +100,14 @@ Feature is **off for every business** until an admin enables **Allow Google auto
 ### 1. Google Cloud (one-time)
 
 1. Create a GCP project and enable billing.
-2. Enable APIs: **Google Business Profile API**, **My Business Account Management API**, **My Business Business Information API**.
-3. OAuth consent screen (External): add scope `https://www.googleapis.com/auth/business.manage`, privacy policy URL, test users while in Testing.
-4. Create OAuth **Web client** redirect URI: `https://api.pratisad.scaleopal.com/integrations/google/callback` (and local `http://localhost:4000/integrations/google/callback` for dev).
-5. Publish OAuth app to Production after Google verification (required for non–test users).
+2. Enable APIs (Library search names):
+   - **Google Business Profile API** (`mybusiness.googleapis.com`) — **reviews & replies** (required; not the same as “Performance API”)
+   - **My Business Account Management API** (`mybusinessaccountmanagement.googleapis.com`)
+   - **My Business Business Information API** (`mybusinessbusinessinformation.googleapis.com`)
+3. **Request GBP API access** (required for many new projects): even with APIs “Enabled”, quota is often **0** until Google approves access. Submit the form at [Google Business Profile API prerequisites — Request access](https://developers.google.com/my-business/content/prereqs#request-access). Wait for approval email before **Load locations** / sync will work.
+4. OAuth consent screen (External): add scope `https://www.googleapis.com/auth/business.manage`, privacy policy URL, test users while in Testing.
+5. Create OAuth **Web client** redirect URI: `https://api.pratisad.scaleopal.com/integrations/google/callback` (and local `http://localhost:4000/integrations/google/callback` for dev).
+6. Publish OAuth app to Production after Google verification (required for non–test users).
 
 ### 2. VPS env (add to `.env`)
 
@@ -148,6 +152,16 @@ Google shows this when the **client_id in the sign-in URL is wrong or unknown**.
    - `Google OAuth callback failed (encryption)` — set `GOOGLE_TOKEN_ENCRYPTION_KEY` and recreate container.
    - `Google OAuth callback failed (refresh_token)` — revoke app at myaccount.google.com/permissions and reconnect.
    - `Google OAuth callback completed successfully` — connection saved; use **Load locations** in portal.
+
+### Connected but “Could not load locations”
+
+OAuth can succeed while **Business Profile API** calls fail. On VPS:
+
+```bash
+docker logs pratisad-api --since 10m 2>&1 | grep "Google API"
+```
+
+**403** on `mybusinessaccountmanagement.googleapis.com` or `mybusinessbusinessinformation.googleapis.com` usually means **GBP API access not approved** (quota stays 0 until Google approves). Enable **Google Business Profile API** (`mybusiness.googleapis.com`) — not only Performance API — and submit [request access](https://developers.google.com/my-business/content/prereqs#request-access).
 
 If the client was deleted in Google Cloud, create a new Web OAuth client and update both env vars.
 

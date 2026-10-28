@@ -121,6 +121,9 @@ export class GoogleBusinessApiClient {
     });
     if (!response.ok) {
       const body = await response.text().catch(() => '');
+      this.logger.warn(
+        `Google API ${response.status} ${url} body=${body.slice(0, 300)}`,
+      );
       throw new GoogleApiError(response.status, body.slice(0, 500));
     }
     return (await response.json()) as T;
