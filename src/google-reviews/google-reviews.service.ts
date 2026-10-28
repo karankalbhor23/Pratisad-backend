@@ -35,10 +35,6 @@ export type GoogleReviewsStatusDto = {
   lastError: string | null;
   pendingApprovalCount: number;
   oauthServerConfigured: boolean;
-  oauthClientIdSuffix: string | null;
-  oauthRedirectUri: string | null;
-  oauthClientIdFormatOk: boolean;
-  oauthClientIdIssue: string | null;
 };
 
 export type GoogleReviewListItemDto = {
@@ -81,7 +77,7 @@ export class GoogleReviewsService {
         })
       : 0;
 
-    const oauthPublic = this.oauth.getOAuthPublicConfig();
+    const oauthServerConfigured = this.oauth.isOAuthConfigured();
 
     return {
       allowed: business.googleAutoReplyAllowed,
@@ -93,11 +89,7 @@ export class GoogleReviewsService {
       lastSyncAt: connection?.lastSyncAt?.toISOString() ?? null,
       lastError: connection?.lastError ?? null,
       pendingApprovalCount,
-      oauthServerConfigured: oauthPublic.configured,
-      oauthClientIdSuffix: oauthPublic.clientIdSuffix,
-      oauthRedirectUri: oauthPublic.redirectUri,
-      oauthClientIdFormatOk: oauthPublic.clientIdFormatOk,
-      oauthClientIdIssue: oauthPublic.clientIdIssue,
+      oauthServerConfigured,
     };
   }
 

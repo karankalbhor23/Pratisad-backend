@@ -143,7 +143,7 @@ Google shows this when the **client_id in the sign-in URL is wrong or unknown**.
    ```bash
    cd /root/pratisad-api && docker compose -f docker-compose.vps.yml up -d --force-recreate
    ```
-6. In the portal **Google reviews** page, check the server hint (client ID suffix + redirect URI) matches Google Cloud.
+6. Check API container logs (`docker logs pratisad-api`) for `Google OAuth client ID misconfigured` — details are server-side only, not shown in the portal.
 
 If the client was deleted in Google Cloud, create a new Web OAuth client and update both env vars.
 

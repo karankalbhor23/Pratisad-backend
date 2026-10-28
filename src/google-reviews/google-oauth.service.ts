@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
+  Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -22,13 +23,7 @@ export function isValidGoogleOAuthClientId(clientId: string): boolean {
   );
 }
 
-export function maskGoogleOAuthClientId(clientId: string): string {
-  if (!clientId) return '';
-  if (clientId.length <= 12) return '…';
-  return `…${clientId.slice(-30)}`;
-}
-
-/** Human-readable hint when client ID fails validation (no secret leakage). */
+/** Server-side diagnostic only (logs); never send to clients. */
 export function describeOAuthClientIdIssue(clientId: string): string | null {
   if (!clientId.trim()) {
     return 'GOOGLE_OAUTH_CLIENT_ID is empty inside the API container.';
@@ -58,48 +53,36 @@ export type GoogleTokenResponse = {
 
 @Injectable()
 export class GoogleOAuthService {
+  private readonly logger = new Logger(GoogleOAuthService.name);
+
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
   ) {}
 
   isOAuthConfigured(): boolean {
-    try {
-      return Boolean(
-        this.getClientId() &&
-          this.getClientSecret() &&
-          this.getRedirectUri() &&
-          isValidGoogleOAuthClientId(this.getClientId()),
-      );
-    } catch {
-      return false;
-    }
-  }
-
-  getOAuthPublicConfig(): {
-    configured: boolean;
-    clientIdSuffix: string | null;
-    redirectUri: string | null;
-    clientIdFormatOk: boolean;
-    clientIdIssue: string | null;
-  } {
-    const rawId = this.config.get<string>('GOOGLE_OAUTH_CLIENT_ID')?.trim() ?? '';
-    const clientIdFormatOk = rawId ? isValidGoogleOAuthClientId(rawId) : false;
-    return {
-      configured: this.isOAuthConfigured(),
-      clientIdSuffix: rawId ? maskGoogleOAuthClientId(rawId) : null,
-      redirectUri: this.getRedirectUri() || null,
-      clientIdFormatOk,
-      clientIdIssue: rawId && !clientIdFormatOk ? describeOAuthClientIdIssue(rawId) : null,
-    };
+    const id = this.config.get<string>('GOOGLE_OAUTH_CLIENT_ID')?.trim() ?? '';
+    const secret = this.getClientSecret();
+    return Boolean(
+      id &&
+        secret &&
+        this.getRedirectUri() &&
+        isValidGoogleOAuthClientId(id),
+    );
   }
 
   getClientId(): string {
     const id = this.config.get<string>('GOOGLE_OAUTH_CLIENT_ID')?.trim() ?? '';
     if (!id) return '';
     if (!isValidGoogleOAuthClientId(id)) {
+      const hint = describeOAuthClientIdIssue(id);
+      this.logger.warn(
+        hint
+          ? `Google OAuth client ID misconfigured: ${hint}`
+          : 'Google OAuth client ID misconfigured',
+      );
       throw new ServiceUnavailableException(
-        'GOOGLE_OAUTH_CLIENT_ID must be the OAuth Web client ID ending in .apps.googleusercontent.com (not the client secret).',
+        'Google connection is not configured on the server.',
       );
     }
     return id;
