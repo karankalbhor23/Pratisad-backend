@@ -6,7 +6,8 @@ describe('GoogleOAuthService state', () => {
   const config = {
     get: (key: string) => {
       if (key === 'GOOGLE_OAUTH_STATE_SECRET') return 'state-secret';
-      if (key === 'GOOGLE_OAUTH_CLIENT_ID') return 'client-id';
+      if (key === 'GOOGLE_OAUTH_CLIENT_ID')
+        return '123456789012-abcdef.apps.googleusercontent.com';
       if (key === 'GOOGLE_OAUTH_CLIENT_SECRET') return 'client-secret';
       if (key === 'PORT') return '4000';
       return undefined;

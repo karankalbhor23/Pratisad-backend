@@ -127,6 +127,26 @@ Generate secrets with `openssl rand -base64 32` (or equivalent). Redeploy API af
 
 Rollback without code deploy: revoke admin allow on affected businesses.
 
+### Troubleshooting: `401 invalid_client` / OAuth client was not found
+
+Google shows this when the **client_id in the sign-in URL is wrong or unknown**. Fix on the VPS and in Google Cloud:
+
+1. **Use the Web client ID**, not the secret. In [Google Cloud Console](https://console.cloud.google.com/) → **APIs & Services → Credentials**, open your **OAuth 2.0 Client ID** of type **Web application**. Copy **Client ID** (ends with `.apps.googleusercontent.com`) into `GOOGLE_OAUTH_CLIENT_ID`. Put **Client secret** in `GOOGLE_OAUTH_CLIENT_SECRET` only.
+2. **No quotes or spaces** in `/root/pratisad-api/.env`:
+   ```env
+   GOOGLE_OAUTH_CLIENT_ID=123456789-abc.apps.googleusercontent.com
+   ```
+3. **Same GCP project** as the OAuth consent screen where you added `business.manage`.
+4. **Redirect URI** in Google Cloud must exactly match `GOOGLE_OAUTH_REDIRECT_URI`:
+   `https://api.pratisad.scaleopal.com/integrations/google/callback`
+5. After editing `.env`, recreate the API container so env loads:
+   ```bash
+   cd /root/pratisad-api && docker compose -f docker-compose.vps.yml up -d --force-recreate
+   ```
+6. In the portal **Google reviews** page, check the server hint (client ID suffix + redirect URI) matches Google Cloud.
+
+If the client was deleted in Google Cloud, create a new Web OAuth client and update both env vars.
+
 ---
 
 ### 4. Create database on shared Postgres

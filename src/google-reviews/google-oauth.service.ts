@@ -12,6 +12,21 @@ const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const SCOPE = 'https://www.googleapis.com/auth/business.manage';
 const STATE_TTL_MS = 10 * 60 * 1000;
+const WEB_CLIENT_ID_SUFFIX = '.apps.googleusercontent.com';
+
+export function isValidGoogleOAuthClientId(clientId: string): boolean {
+  return (
+    clientId.length > WEB_CLIENT_ID_SUFFIX.length &&
+    clientId.endsWith(WEB_CLIENT_ID_SUFFIX) &&
+    !/\s/.test(clientId)
+  );
+}
+
+export function maskGoogleOAuthClientId(clientId: string): string {
+  if (!clientId) return '';
+  if (clientId.length <= 12) return '…';
+  return `…${clientId.slice(-30)}`;
+}
 
 export type GoogleTokenResponse = {
   access_token: string;
@@ -29,11 +44,47 @@ export class GoogleOAuthService {
   ) {}
 
   isOAuthConfigured(): boolean {
-    return Boolean(
-      this.config.get<string>('GOOGLE_OAUTH_CLIENT_ID')?.trim() &&
-        this.config.get<string>('GOOGLE_OAUTH_CLIENT_SECRET')?.trim() &&
-        this.getRedirectUri(),
-    );
+    try {
+      return Boolean(
+        this.getClientId() &&
+          this.getClientSecret() &&
+          this.getRedirectUri() &&
+          isValidGoogleOAuthClientId(this.getClientId()),
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  getOAuthPublicConfig(): {
+    configured: boolean;
+    clientIdSuffix: string | null;
+    redirectUri: string | null;
+    clientIdFormatOk: boolean;
+  } {
+    const rawId = this.config.get<string>('GOOGLE_OAUTH_CLIENT_ID')?.trim() ?? '';
+    const clientIdFormatOk = rawId ? isValidGoogleOAuthClientId(rawId) : false;
+    return {
+      configured: this.isOAuthConfigured(),
+      clientIdSuffix: rawId ? maskGoogleOAuthClientId(rawId) : null,
+      redirectUri: this.getRedirectUri() || null,
+      clientIdFormatOk,
+    };
+  }
+
+  getClientId(): string {
+    const id = this.config.get<string>('GOOGLE_OAUTH_CLIENT_ID')?.trim() ?? '';
+    if (!id) return '';
+    if (!isValidGoogleOAuthClientId(id)) {
+      throw new ServiceUnavailableException(
+        'GOOGLE_OAUTH_CLIENT_ID must be the OAuth Web client ID ending in .apps.googleusercontent.com (not the client secret).',
+      );
+    }
+    return id;
+  }
+
+  getClientSecret(): string {
+    return this.config.get<string>('GOOGLE_OAUTH_CLIENT_SECRET')?.trim() ?? '';
   }
 
   getRedirectUri(): string {
@@ -47,7 +98,9 @@ export class GoogleOAuthService {
     businessId: string,
     clerkUserId: string,
   ): Promise<string> {
-    if (!this.isOAuthConfigured()) {
+    const clientId = this.getClientId();
+    const clientSecret = this.getClientSecret();
+    if (!clientId || !clientSecret) {
       throw new ServiceUnavailableException(
         'Google connection is not configured on the server.',
       );
@@ -59,7 +112,7 @@ export class GoogleOAuthService {
     });
     const state = this.signState({ nonce, businessId, clerkUserId, exp: expiresAt.getTime() });
     const params = new URLSearchParams({
-      client_id: this.config.get<string>('GOOGLE_OAUTH_CLIENT_ID')!,
+      client_id: clientId,
       redirect_uri: this.getRedirectUri(),
       response_type: 'code',
       scope: SCOPE,
@@ -113,8 +166,8 @@ export class GoogleOAuthService {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        client_id: this.config.get<string>('GOOGLE_OAUTH_CLIENT_ID')!,
-        client_secret: this.config.get<string>('GOOGLE_OAUTH_CLIENT_SECRET')!,
+        client_id: this.getClientId(),
+        client_secret: this.getClientSecret(),
         grant_type: 'refresh_token',
         refresh_token: refreshToken,
       }),
@@ -135,8 +188,8 @@ export class GoogleOAuthService {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         code,
-        client_id: this.config.get<string>('GOOGLE_OAUTH_CLIENT_ID')!,
-        client_secret: this.config.get<string>('GOOGLE_OAUTH_CLIENT_SECRET')!,
+        client_id: this.getClientId(),
+        client_secret: this.getClientSecret(),
         redirect_uri: this.getRedirectUri(),
         grant_type: 'authorization_code',
       }),
