@@ -38,6 +38,7 @@ export type GoogleReviewsStatusDto = {
   oauthClientIdSuffix: string | null;
   oauthRedirectUri: string | null;
   oauthClientIdFormatOk: boolean;
+  oauthClientIdIssue: string | null;
 };
 
 export type GoogleReviewListItemDto = {
@@ -96,6 +97,7 @@ export class GoogleReviewsService {
       oauthClientIdSuffix: oauthPublic.clientIdSuffix,
       oauthRedirectUri: oauthPublic.redirectUri,
       oauthClientIdFormatOk: oauthPublic.clientIdFormatOk,
+      oauthClientIdIssue: oauthPublic.clientIdIssue,
     };
   }
 

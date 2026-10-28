@@ -28,6 +28,26 @@ export function maskGoogleOAuthClientId(clientId: string): string {
   return `…${clientId.slice(-30)}`;
 }
 
+/** Human-readable hint when client ID fails validation (no secret leakage). */
+export function describeOAuthClientIdIssue(clientId: string): string | null {
+  if (!clientId.trim()) {
+    return 'GOOGLE_OAUTH_CLIENT_ID is empty inside the API container.';
+  }
+  if (/googleCusercontent/i.test(clientId)) {
+    return 'Typo detected: use googleusercontent.com (lowercase, no extra "C" before "user").';
+  }
+  if (/\.apps\.googleusercontent\.com/i.test(clientId) && !clientId.endsWith(WEB_CLIENT_ID_SUFFIX)) {
+    return 'Client ID domain must be exactly .apps.googleusercontent.com (all lowercase).';
+  }
+  if (clientId.startsWith('GOCSPX-')) {
+    return 'This looks like the client secret — use the Client ID ending in .apps.googleusercontent.com instead.';
+  }
+  if (!clientId.includes('.apps.')) {
+    return 'Use the OAuth Web client ID from Google Cloud Credentials, not an API key.';
+  }
+  return 'Client ID must end with .apps.googleusercontent.com exactly as shown in Google Cloud.';
+}
+
 export type GoogleTokenResponse = {
   access_token: string;
   expires_in: number;
@@ -61,6 +81,7 @@ export class GoogleOAuthService {
     clientIdSuffix: string | null;
     redirectUri: string | null;
     clientIdFormatOk: boolean;
+    clientIdIssue: string | null;
   } {
     const rawId = this.config.get<string>('GOOGLE_OAUTH_CLIENT_ID')?.trim() ?? '';
     const clientIdFormatOk = rawId ? isValidGoogleOAuthClientId(rawId) : false;
@@ -69,6 +90,7 @@ export class GoogleOAuthService {
       clientIdSuffix: rawId ? maskGoogleOAuthClientId(rawId) : null,
       redirectUri: this.getRedirectUri() || null,
       clientIdFormatOk,
+      clientIdIssue: rawId && !clientIdFormatOk ? describeOAuthClientIdIssue(rawId) : null,
     };
   }
 

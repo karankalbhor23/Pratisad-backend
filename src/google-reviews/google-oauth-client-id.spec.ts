@@ -1,4 +1,5 @@
 import {
+  describeOAuthClientIdIssue,
   isValidGoogleOAuthClientId,
   maskGoogleOAuthClientId,
 } from './google-oauth.service';
@@ -13,5 +14,11 @@ describe('Google OAuth client ID helpers', () => {
   it('rejects secrets and empty values', () => {
     expect(isValidGoogleOAuthClientId('GOCSPX-not-a-client-id')).toBe(false);
     expect(isValidGoogleOAuthClientId('')).toBe(false);
+  });
+
+  it('detects googleCusercontent typo', () => {
+    expect(
+      describeOAuthClientIdIssue('123-abc.apps.googleCusercontent.com'),
+    ).toMatch(/Typo detected/i);
   });
 });
