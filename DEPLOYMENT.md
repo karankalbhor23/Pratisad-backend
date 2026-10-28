@@ -80,9 +80,54 @@ WEB_APP_ORIGIN=https://pratisad.scaleopal.com
 GEMINI_API_KEY=...
 GEMINI_MODEL=gemini-3.5-flash-lite
 E2E_AUTH_BYPASS=false
+
+# Optional — Google review auto-reply (see "Google Business Profile" below)
+# GOOGLE_OAUTH_CLIENT_ID=
+# GOOGLE_OAUTH_CLIENT_SECRET=
+# GOOGLE_OAUTH_REDIRECT_URI=https://api.pratisad.scaleopal.com/integrations/google/callback
+# GOOGLE_TOKEN_ENCRYPTION_KEY=
+# GOOGLE_OAUTH_STATE_SECRET=
 ```
 
 Register a Clerk webhook pointing to `https://api.pratisad.scaleopal.com/webhooks/clerk` with event **user.created** (activates invited business portal users).
+
+---
+
+## Google Business Profile (review auto-reply)
+
+Feature is **off for every business** until an admin enables **Allow Google auto-reply** on the business edit page. Then the portal user connects Google, picks a location, and enables auto-reply.
+
+### 1. Google Cloud (one-time)
+
+1. Create a GCP project and enable billing.
+2. Enable APIs: **Google Business Profile API**, **My Business Account Management API**, **My Business Business Information API**.
+3. OAuth consent screen (External): add scope `https://www.googleapis.com/auth/business.manage`, privacy policy URL, test users while in Testing.
+4. Create OAuth **Web client** redirect URI: `https://api.pratisad.scaleopal.com/integrations/google/callback` (and local `http://localhost:4000/integrations/google/callback` for dev).
+5. Publish OAuth app to Production after Google verification (required for non–test users).
+
+### 2. VPS env (add to `.env`)
+
+```env
+GOOGLE_OAUTH_CLIENT_ID=...
+GOOGLE_OAUTH_CLIENT_SECRET=...
+GOOGLE_OAUTH_REDIRECT_URI=https://api.pratisad.scaleopal.com/integrations/google/callback
+GOOGLE_TOKEN_ENCRYPTION_KEY=long_random_secret
+GOOGLE_OAUTH_STATE_SECRET=another_long_random_secret
+WEB_APP_ORIGIN=https://pratisad.scaleopal.com
+```
+
+Generate secrets with `openssl rand -base64 32` (or equivalent). Redeploy API after migration `20261028120000_google_reviews`.
+
+### 3. Behaviour
+
+- Scheduled sync: **once daily** (04:00 UTC cron). Portal **Sync now** for manual pull (15-minute cooldown per business).
+- **4–5★** with auto-reply on: AI reply posted automatically after sync.
+- **1–3★**: AI draft → business **Approve & post** in portal.
+- Admin setting `googleAutoReplyAllowed=false` stops processing and hides portal UI.
+
+Rollback without code deploy: revoke admin allow on affected businesses.
+
+---
 
 ### 4. Create database on shared Postgres
 

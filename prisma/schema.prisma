@@ -32,16 +32,113 @@ model Business {
   logoUrl            String?
   coverImageUrl      String?
   primaryColor       String?
-  googleReviewUrl    String?
-  isActive           Boolean              @default(true)
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
-  member             BusinessMember?
-  feedbackSubmissions FeedbackSubmission[]
-  aiUsageEvents      AiUsageEvent[]
-  reviewCards        ReviewCard[]
+  googleReviewUrl           String?
+  googleAutoReplyAllowed    Boolean              @default(false)
+  googleAutoReplyEnabled    Boolean              @default(false)
+  googleLocationName        String?
+  googleLocationTitle       String?
+  googleAutoReplySettings   Json?
+  isActive                  Boolean              @default(true)
+  createdAt                 DateTime             @default(now())
+  updatedAt                 DateTime             @updatedAt
+  member                    BusinessMember?
+  feedbackSubmissions       FeedbackSubmission[]
+  aiUsageEvents             AiUsageEvent[]
+  reviewCards               ReviewCard[]
+  googleBusinessConnection  GoogleBusinessConnection?
+  googleReviews             GoogleReview[]
+  googleOAuthPendingStates  GoogleOAuthPendingState[]
 
   @@map("businesses")
+}
+
+enum GoogleReviewProcessingState {
+  synced
+  draft_ready
+  pending_approval
+  queued_post
+  posted
+  failed
+  skipped
+}
+
+enum GoogleReviewReplyMode {
+  auto
+  manual
+  approved
+}
+
+model GoogleBusinessConnection {
+  id                    String    @id @default(uuid())
+  businessId            String    @unique
+  business              Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  googleAccountEmail    String?
+  googleAccountName     String?
+  refreshTokenEncrypted String
+  accessTokenEncrypted  String?
+  accessTokenExpiresAt  DateTime?
+  scopes                String?
+  tokenVersion          Int       @default(1)
+  connectedAt           DateTime  @default(now())
+  disconnectedAt        DateTime?
+  lastSyncAt            DateTime?
+  lastError             String?   @db.Text
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("google_business_connections")
+}
+
+model GoogleOAuthPendingState {
+  id          String    @id @default(uuid())
+  nonce       String    @unique
+  businessId  String
+  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  clerkUserId String
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([businessId])
+  @@map("google_oauth_pending_states")
+}
+
+model GoogleReview {
+  id                  String                      @id @default(uuid())
+  businessId          String
+  business            Business                    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  googleReviewName    String                      @unique
+  starRating          Int
+  comment             String?                     @db.Text
+  reviewerDisplayName String?
+  reviewCreateTime    DateTime?
+  replyComment        String?                     @db.Text
+  replyUpdateTime     DateTime?
+  draftReplyText      String?                     @db.Text
+  processingState     GoogleReviewProcessingState @default(synced)
+  syncedAt            DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
+  replyAttempts       GoogleReviewReplyAttempt[]
+
+  @@index([businessId, processingState])
+  @@index([businessId, syncedAt(sort: Desc)])
+  @@map("google_reviews")
+}
+
+model GoogleReviewReplyAttempt {
+  id           String                @id @default(uuid())
+  reviewId     String
+  review       GoogleReview          @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  attemptedAt  DateTime              @default(now())
+  mode         GoogleReviewReplyMode
+  draftText    String?               @db.Text
+  postedText   String?               @db.Text
+  success      Boolean
+  errorCode    String?
+  errorMessage String?               @db.Text
+
+  @@index([reviewId, attemptedAt(sort: Desc)])
+  @@map("google_review_reply_attempts")
 }
 
 enum ReviewCardStatus {
