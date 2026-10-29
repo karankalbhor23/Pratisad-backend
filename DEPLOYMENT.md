@@ -124,7 +124,7 @@ Generate secrets with `openssl rand -base64 32` (or equivalent). Redeploy API af
 
 ### 3. Behaviour
 
-- Scheduled sync: **once daily** (04:00 UTC cron). Portal **Sync now** for manual pull (15-minute cooldown per business).
+- Scheduled sync: **once daily** (04:00 UTC cron). Portal **Sync now** for manual pull (optional cooldown via `GOOGLE_REVIEWS_MANUAL_SYNC_COOLDOWN_MS`; use `900000` for 15 minutes in production).
 - **4–5★** with auto-reply on: AI reply posted automatically after sync.
 - **1–3★**: AI draft → business **Approve & post** in portal.
 - Admin setting `googleAutoReplyAllowed=false` stops processing and hides portal UI.
