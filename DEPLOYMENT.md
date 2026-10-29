@@ -105,7 +105,7 @@ Feature is **off for every business** until an admin enables **Allow Google auto
    - **My Business Account Management API** (`mybusinessaccountmanagement.googleapis.com`)
    - **My Business Business Information API** (`mybusinessbusinessinformation.googleapis.com`)
 3. **Request GBP API access** (required for many new projects): even with APIs “Enabled”, quota is often **0** until Google approves access. Submit the form at [Google Business Profile API prerequisites — Request access](https://developers.google.com/my-business/content/prereqs#request-access). Wait for approval email before **Load locations** / sync will work.
-4. OAuth consent screen (External): add scope `https://www.googleapis.com/auth/business.manage`, privacy policy URL, test users while in Testing.
+4. OAuth consent screen (External): add scope `https://www.googleapis.com/auth/business.manage`, privacy policy URL, test users while in Testing. For **Production** (any user can connect), complete Google verification — see [docs/GOOGLE_OAUTH_VERIFICATION.md](./docs/GOOGLE_OAUTH_VERIFICATION.md) and deploy web pages `https://pratisad.scaleopal.com/privacy` and `/terms`.
 5. Create OAuth **Web client** redirect URI: `https://api.pratisad.scaleopal.com/integrations/google/callback` (and local `http://localhost:4000/integrations/google/callback` for dev).
 6. Publish OAuth app to Production after Google verification (required for non–test users).
 
