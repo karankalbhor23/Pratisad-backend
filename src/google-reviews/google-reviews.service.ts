@@ -17,6 +17,7 @@ import {
   GoogleBusinessApiClient,
 } from './google-business-api.client';
 import { userMessageForGoogleApiError } from './google-api-user-messages';
+import { reviewsApiLocationName } from './google-location.util';
 import { GoogleOAuthService } from './google-oauth.service';
 import { GoogleReplyGeneratorService } from './google-reply-generator.service';
 import {
@@ -226,10 +227,17 @@ export class GoogleReviewsService {
       throw new BadRequestException('Location is required.');
     }
     await this.requireConnection(businessId);
+    const connection = await this.prisma.googleBusinessConnection.findUnique({
+      where: { businessId },
+    });
+    const locationForReviews = reviewsApiLocationName(
+      connection?.googleAccountName,
+      locationName.trim(),
+    );
     await this.prisma.business.update({
       where: { id: businessId },
       data: {
-        googleLocationName: locationName.trim(),
+        googleLocationName: locationForReviews,
         googleLocationTitle: locationTitle.trim() || locationName.trim(),
       },
     });
@@ -291,30 +299,57 @@ export class GoogleReviewsService {
     if (!business.googleLocationName) {
       throw new BadRequestException('Select a Google location first.');
     }
-    await this.requireConnection(businessId);
-    const accessToken = await this.getValidAccessToken(businessId);
-    let synced = 0;
-    let pageToken: string | undefined;
-    do {
-      const page = await this.googleApi.listReviews(
-        accessToken,
-        business.googleLocationName,
-        pageToken,
-      );
-      for (const review of page.reviews) {
-        await this.upsertReviewFromGoogle(business, review);
-        synced += 1;
+    const connection = await this.requireConnection(businessId);
+    const locationForReviews = reviewsApiLocationName(
+      connection.googleAccountName,
+      business.googleLocationName,
+    );
+
+    try {
+      const accessToken = await this.getValidAccessToken(businessId);
+      let synced = 0;
+      let pageToken: string | undefined;
+      do {
+        const page = await this.googleApi.listReviews(
+          accessToken,
+          locationForReviews,
+          pageToken,
+        );
+        for (const review of page.reviews) {
+          await this.upsertReviewFromGoogle(business, review);
+          synced += 1;
+        }
+        pageToken = page.nextPageToken;
+      } while (pageToken);
+
+      if (locationForReviews !== business.googleLocationName) {
+        await this.prisma.business.update({
+          where: { id: businessId },
+          data: { googleLocationName: locationForReviews },
+        });
       }
-      pageToken = page.nextPageToken;
-    } while (pageToken);
 
-    await this.prisma.googleBusinessConnection.update({
-      where: { businessId },
-      data: { lastSyncAt: new Date(), lastError: null },
-    });
+      await this.prisma.googleBusinessConnection.update({
+        where: { businessId },
+        data: { lastSyncAt: new Date(), lastError: null },
+      });
 
-    await this.processPendingRepliesForBusiness(businessId);
-    return { synced };
+      await this.processPendingRepliesForBusiness(businessId);
+      return { synced };
+    } catch (error) {
+      const message = userMessageForGoogleApiError(error);
+      this.logger.warn(
+        `syncBusinessReviews failed for ${businessId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      if (error instanceof GoogleApiError) {
+        await this.prisma.googleBusinessConnection.update({
+          where: { businessId },
+          data: { lastError: message.slice(0, 500) },
+        });
+        throw new BadRequestException(message);
+      }
+      throw error;
+    }
   }
 
   async listReviews(

@@ -12,6 +12,11 @@ export function userMessageForGoogleApiError(error: unknown): string {
       'if your quota is 0: https://developers.google.com/my-business/content/prereqs#request-access'
     );
   }
+  if (error.status === 404) {
+    return (
+      'Google could not find reviews for this location. Save your location again in the portal (Load locations → Save), then sync.'
+    );
+  }
   if (error.status === 429) {
     return 'Google API rate limit reached. Wait a few minutes and try Load locations again.';
   }
