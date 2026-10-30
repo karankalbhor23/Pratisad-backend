@@ -16,9 +16,7 @@ import {
   isValidReviewCardToken,
   normalizeReviewCardToken,
 } from './review-card-token.util';
-import {
-  ReviewCardResolveDto,
-} from './review-cards.types';
+import { ReviewCardResolveDto } from './review-cards.types';
 
 const INSERT_CHUNK = 100;
 
@@ -54,7 +52,9 @@ export class ReviewCardsService {
   ) {}
 
   getWebOrigin(): string {
-    const origin = this.config.get<string>('WEB_APP_ORIGIN')?.replace(/\/+$/, '');
+    const origin = this.config
+      .get<string>('WEB_APP_ORIGIN')
+      ?.replace(/\/+$/, '');
     if (!origin) {
       throw new ServiceUnavailableException(
         'WEB_APP_ORIGIN is not configured for review card URLs.',
@@ -69,14 +69,12 @@ export class ReviewCardsService {
 
   async createBatch(label: string, quantity: number) {
     const trimmedLabel = label.trim();
-    if (!trimmedLabel) throw new BadRequestException('Batch label is required.');
+    if (!trimmedLabel)
+      throw new BadRequestException('Batch label is required.');
 
-    const max =
-      Number(this.config.get<string>('REVIEW_CARD_BATCH_MAX')) || 500;
+    const max = Number(this.config.get<string>('REVIEW_CARD_BATCH_MAX')) || 500;
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > max) {
-      throw new BadRequestException(
-        `Quantity must be between 1 and ${max}.`,
-      );
+      throw new BadRequestException(`Quantity must be between 1 and ${max}.`);
     }
 
     const batch = await this.prisma.$transaction(async (tx) => {
@@ -174,11 +172,7 @@ export class ReviewCardsService {
     };
   }
 
-  async listCardsInBatch(
-    batchId: string,
-    page = 1,
-    limit = 50,
-  ) {
+  async listCardsInBatch(batchId: string, page = 1, limit = 50) {
     await this.getBatchById(batchId);
     const skip = (page - 1) * limit;
     const [cards, total] = await Promise.all([
@@ -312,7 +306,9 @@ export class ReviewCardsService {
     return { outcome: 'not_found' };
   }
 
-  async listAssignedForBusiness(businessId: string): Promise<AssignedCardDto[]> {
+  async listAssignedForBusiness(
+    businessId: string,
+  ): Promise<AssignedCardDto[]> {
     await this.assertBusinessExists(businessId);
     const cards = await this.prisma.reviewCard.findMany({
       where: {
@@ -468,7 +464,8 @@ export class ReviewCardsService {
         },
       });
       if (updated.count === 1) revoked.push(token);
-      else errors.push({ token, message: 'Card not assigned to this business.' });
+      else
+        errors.push({ token, message: 'Card not assigned to this business.' });
     }
 
     return { revokedTokens: revoked, errors };
@@ -484,6 +481,8 @@ export class ReviewCardsService {
 }
 
 function csvEscape(value: string): string {
-  if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
-  return value;
+  // Spreadsheet software treats these prefixes as formulas even in CSV cells.
+  const literal = /^[=+\-@]/.test(value) ? `'${value}` : value;
+  if (/[",\n]/.test(literal)) return `"${literal.replace(/"/g, '""')}"`;
+  return literal;
 }

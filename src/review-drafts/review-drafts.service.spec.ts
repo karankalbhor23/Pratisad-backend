@@ -56,7 +56,7 @@ describe('ReviewDraftsService', () => {
       draft: 'Draft text.',
     });
     expect(feedbackRecord.recordAiUsage).toHaveBeenCalled();
-    expect(feedbackRecord.recordSubmission).toHaveBeenCalled();
+    expect(feedbackRecord.recordSubmission).not.toHaveBeenCalled();
     expect(businessService.findBySlug).toHaveBeenCalledWith(
       'test-business',
       true,

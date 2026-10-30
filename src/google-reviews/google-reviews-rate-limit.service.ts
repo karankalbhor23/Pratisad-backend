@@ -1,8 +1,4 @@
-import {
-  HttpException,
-  HttpStatus,
-  Injectable,
-} from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 const DEFAULT_MANUAL_SYNC_COOLDOWN_MS = 15 * 60 * 1000;
@@ -16,11 +12,13 @@ export class GoogleReviewsRateLimitService {
 
   constructor(private readonly config: ConfigService) {}
 
-  /** 0 = no cooldown (testing). Unset env defaults to 0; set 900000 for 15 min in production. */
+  /** 0 explicitly disables the cooldown for local tests; production defaults safely. */
   private manualSyncCooldownMs(): number {
-    const raw = this.config.get<string>('GOOGLE_REVIEWS_MANUAL_SYNC_COOLDOWN_MS');
+    const raw = this.config.get<string>(
+      'GOOGLE_REVIEWS_MANUAL_SYNC_COOLDOWN_MS',
+    );
     if (raw === undefined || raw.trim() === '') {
-      return 0;
+      return DEFAULT_MANUAL_SYNC_COOLDOWN_MS;
     }
     const n = Number(raw.trim());
     if (!Number.isFinite(n) || n < 0) {

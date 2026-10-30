@@ -18,10 +18,7 @@ export class ReviewCardsController {
   @Get(':token/resolve')
   @HttpCode(HttpStatus.OK)
   resolve(@Param('token') token: string, @Req() req: Request) {
-    const ip =
-      (typeof req.headers['x-forwarded-for'] === 'string'
-        ? req.headers['x-forwarded-for'].split(',')[0]?.trim()
-        : undefined) ?? req.ip;
+    const ip = req.ip;
     if (!checkResolveRateLimit(ip ?? 'unknown')) {
       throw new HttpException(
         'Too many requests. Try again shortly.',

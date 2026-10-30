@@ -26,12 +26,17 @@ export class FeedbackService {
       this.businessService,
       input.businessSlug,
     );
-    assertKeywordsForRating(business, input.rating, input.keywords);
+    const keywords = assertKeywordsForRating(
+      business,
+      input.rating,
+      input.keywords,
+    );
 
     return this.feedbackRecord.recordSubmission({
       businessId: business.id,
+      submissionId: input.submissionId,
       rating: input.rating,
-      keywords: input.keywords,
+      keywords,
       comment: input.comment,
       source: FeedbackSource.private_submit,
     });

@@ -40,20 +40,34 @@ export class AuthService {
       }
     }
 
-    const orConditions: Array<Record<string, string>> = [];
-    if (input.clerkUserId) orConditions.push({ clerkUserId: input.clerkUserId });
-    if (normalizedUsername) orConditions.push({ username: normalizedUsername });
-    if (normalizedEmail) orConditions.push({ email: normalizedEmail });
-
-    const member = orConditions.length
+    const memberByClerkId = input.clerkUserId
       ? await this.prisma.businessMember.findFirst({
           where: {
+            clerkUserId: input.clerkUserId,
             status: BusinessMemberStatus.active,
-            OR: orConditions,
           },
           include: { business: { select: { name: true } } },
         })
       : null;
+    const fallbackConditions: Array<Record<string, string>> = [];
+    if (normalizedUsername)
+      fallbackConditions.push({ username: normalizedUsername });
+    if (normalizedEmail) fallbackConditions.push({ email: normalizedEmail });
+    const fallbackMembers =
+      !memberByClerkId && fallbackConditions.length
+        ? await this.prisma.businessMember.findMany({
+            where: {
+              clerkUserId: null,
+              status: BusinessMemberStatus.active,
+              OR: fallbackConditions,
+            },
+            include: { business: { select: { name: true } } },
+            take: 2,
+          })
+        : [];
+    const member =
+      memberByClerkId ??
+      (fallbackMembers.length === 1 ? fallbackMembers[0] : null);
 
     if (member) {
       return {

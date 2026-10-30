@@ -1,4 +1,16 @@
-import { IsBoolean, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { GoogleReviewProcessingState } from '@prisma/client';
+import {
+  IsBoolean,
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class SetGoogleLocationDto {
   @IsString()
@@ -26,12 +38,19 @@ export class ApproveGoogleReviewDto {
 
 export class ListGoogleReviewsQueryDto {
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
   page?: number;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
   limit?: number;
 
   @IsOptional()
-  @IsString()
-  state?: string;
+  @IsEnum(GoogleReviewProcessingState)
+  state?: GoogleReviewProcessingState;
 }

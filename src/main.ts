@@ -6,6 +6,10 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule, { rawBody: true });
+  // Production ingress is a single Nginx Proxy Manager hop. Express then
+  // resolves request.ip from the rightmost forwarded address supplied by NPM.
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
+  app.enableShutdownHooks();
 
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT', 4000);

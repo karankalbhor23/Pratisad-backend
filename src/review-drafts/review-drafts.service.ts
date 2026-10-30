@@ -7,7 +7,6 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { FeedbackSource } from '@prisma/client';
 import { BusinessService } from '../business/business.service';
 import {
   assertKeywordsForRating,
@@ -136,7 +135,11 @@ export class ReviewDraftsService {
       this.businessService,
       input.businessSlug,
     );
-    assertKeywordsForRating(business, input.rating, input.keywords);
+    const keywords = assertKeywordsForRating(
+      business,
+      input.rating,
+      input.keywords,
+    );
 
     const apiKey = this.config.get<string>('GEMINI_API_KEY');
     const preferredModel =
@@ -153,7 +156,7 @@ export class ReviewDraftsService {
       contents: [
         {
           role: 'user',
-          parts: [{ text: buildUserPrompt(input, business) }],
+          parts: [{ text: buildUserPrompt({ ...input, keywords }, business) }],
         },
       ],
       generationConfig: {
@@ -169,18 +172,15 @@ export class ReviewDraftsService {
     for (const model of resolveGeminiModels(preferredModel)) {
       let response: Response;
       try {
-        response = await fetch(
-          `${GEMINI_API_BASE}/${model}:generateContent`,
-          {
-            method: 'POST',
-            headers: {
-              'x-goog-api-key': apiKey,
-              'Content-Type': 'application/json',
-            },
-            body: requestBody,
-            signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        response = await fetch(`${GEMINI_API_BASE}/${model}:generateContent`, {
+          method: 'POST',
+          headers: {
+            'x-goog-api-key': apiKey,
+            'Content-Type': 'application/json',
           },
-        );
+          body: requestBody,
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        });
       } catch (error) {
         if (
           (error instanceof DOMException &&
@@ -243,14 +243,6 @@ export class ReviewDraftsService {
     }
 
     await this.feedbackRecord.recordAiUsage(business.id, usedModel, true);
-    await this.feedbackRecord.recordSubmission({
-      businessId: business.id,
-      rating: input.rating,
-      keywords: input.keywords,
-      comment: input.comment,
-      source: FeedbackSource.draft_generated,
-    });
-
     return { draft };
   }
 }

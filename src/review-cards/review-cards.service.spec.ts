@@ -102,4 +102,17 @@ describe('ReviewCardsService', () => {
     expect(result.assignedTokens).toEqual(['prucalitee']);
     expect(result.errors).toEqual([]);
   });
+
+  it('neutralizes spreadsheet formulas in CSV batch labels', async () => {
+    mockPrisma.reviewCardBatch.findUnique.mockResolvedValue({
+      id: 'batch-1',
+      label: '=HYPERLINK("https://example.test")',
+    });
+    mockPrisma.reviewCard.findMany.mockResolvedValue([
+      { serialInBatch: 1, token: 'abcd123456' },
+    ]);
+    await expect(service.buildCsvExport('batch-1')).resolves.toContain(
+      '\'=HYPERLINK(""https://example.test"")',
+    );
+  });
 });

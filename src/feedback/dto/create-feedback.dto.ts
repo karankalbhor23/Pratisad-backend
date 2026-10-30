@@ -6,6 +6,7 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  IsUUID,
   Length,
   Matches,
   Max,
@@ -14,6 +15,10 @@ import {
 } from 'class-validator';
 
 export class CreateFeedbackDto {
+  @IsOptional()
+  @IsUUID('4')
+  submissionId?: string;
+
   @IsString()
   @Length(2, 50)
   @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)

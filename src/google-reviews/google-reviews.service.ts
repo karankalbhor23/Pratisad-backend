@@ -26,6 +26,8 @@ import {
 } from './google-reply-rules';
 import { GoogleTokenCipher } from './google-token.cipher';
 
+type GoogleReviewsDb = PrismaService | Prisma.TransactionClient;
+
 export type GoogleReviewsStatusDto = {
   allowed: boolean;
   enabled: boolean;
@@ -294,19 +296,22 @@ export class GoogleReviewsService {
     ]);
   }
 
-  async syncBusinessReviews(businessId: string): Promise<{ synced: number }> {
-    const business = await this.assertAllowed(businessId);
+  async syncBusinessReviews(
+    businessId: string,
+    db: GoogleReviewsDb = this.prisma,
+  ): Promise<{ synced: number }> {
+    const business = await this.assertAllowed(businessId, db);
     if (!business.googleLocationName) {
       throw new BadRequestException('Select a Google location first.');
     }
-    const connection = await this.requireConnection(businessId);
+    const connection = await this.requireConnection(businessId, db);
     const locationForReviews = reviewsApiLocationName(
       connection.googleAccountName,
       business.googleLocationName,
     );
 
     try {
-      const accessToken = await this.getValidAccessToken(businessId);
+      const accessToken = await this.getValidAccessToken(businessId, db);
       let synced = 0;
       let pageToken: string | undefined;
       do {
@@ -316,25 +321,25 @@ export class GoogleReviewsService {
           pageToken,
         );
         for (const review of page.reviews) {
-          await this.upsertReviewFromGoogle(business, review);
+          await this.upsertReviewFromGoogle(business, review, db);
           synced += 1;
         }
         pageToken = page.nextPageToken;
       } while (pageToken);
 
       if (locationForReviews !== business.googleLocationName) {
-        await this.prisma.business.update({
+        await db.business.update({
           where: { id: businessId },
           data: { googleLocationName: locationForReviews },
         });
       }
 
-      await this.prisma.googleBusinessConnection.update({
+      await db.googleBusinessConnection.update({
         where: { businessId },
         data: { lastSyncAt: new Date(), lastError: null },
       });
 
-      await this.processPendingRepliesForBusiness(businessId);
+      await this.processPendingRepliesForBusiness(businessId, db);
       return { synced };
     } catch (error) {
       const message = userMessageForGoogleApiError(error);
@@ -342,7 +347,7 @@ export class GoogleReviewsService {
         `syncBusinessReviews failed for ${businessId}: ${error instanceof Error ? error.message : String(error)}`,
       );
       if (error instanceof GoogleApiError) {
-        await this.prisma.googleBusinessConnection.update({
+        await db.googleBusinessConnection.update({
           where: { businessId },
           data: { lastError: message.slice(0, 500) },
         });
@@ -455,48 +460,35 @@ export class GoogleReviewsService {
   async runScheduledSync(): Promise<void> {
     if (this.cronRunning) return;
     this.cronRunning = true;
-    let lock = false;
     try {
-      const lockRows = await this.prisma.$queryRaw<{ locked: boolean }[]>`
-        SELECT pg_try_advisory_lock(hashtext('pratisad_google_reviews_sync')) AS locked
-      `;
-      lock = lockRows[0]?.locked === true;
-      if (!lock) return;
-
-      const businesses = await this.prisma.business.findMany({
-        where: {
-          googleAutoReplyAllowed: true,
-          googleLocationName: { not: null },
-          googleBusinessConnection: {
-            is: { disconnectedAt: null },
-          },
-          OR: [
-            { googleAutoReplyEnabled: true },
-            {
-              googleReviews: {
-                some: {
-                  processingState: GoogleReviewProcessingState.pending_approval,
-                },
-              },
-            },
-          ],
-        },
-        select: { id: true },
-      });
-
-      for (const { id } of businesses) {
-        try {
-          await this.syncBusinessReviews(id);
-        } catch (error) {
-          this.logger.warn(`Scheduled sync failed for business ${id}: ${String(error)}`);
-        }
-      }
-    } finally {
-      if (lock) {
-        await this.prisma.$executeRaw`
-          SELECT pg_advisory_unlock(hashtext('pratisad_google_reviews_sync'))
+      await this.prisma.$transaction(async (tx) => {
+        const lockRows = await tx.$queryRaw<{ locked: boolean }[]>`
+          SELECT pg_try_advisory_xact_lock(hashtext('pratisad_google_reviews_sync')) AS locked
         `;
-      }
+        if (lockRows[0]?.locked !== true) return;
+
+        const businesses = await tx.business.findMany({
+          where: {
+            googleAutoReplyAllowed: true,
+            googleLocationName: { not: null },
+            googleBusinessConnection: { is: { disconnectedAt: null } },
+            OR: [
+              { googleAutoReplyEnabled: true },
+              { googleReviews: { some: { processingState: GoogleReviewProcessingState.pending_approval } } },
+            ],
+          },
+          select: { id: true },
+        });
+
+        for (const { id } of businesses) {
+          try {
+            await this.syncBusinessReviews(id, tx);
+          } catch (error) {
+            this.logger.warn(`Scheduled sync failed for business ${id}: ${String(error)}`);
+          }
+        }
+      });
+    } finally {
       this.cronRunning = false;
     }
   }
@@ -516,11 +508,12 @@ export class GoogleReviewsService {
       createTime?: string;
       reviewReply?: { comment?: string; updateTime?: string };
     },
+    db: GoogleReviewsDb = this.prisma,
   ): Promise<void> {
     const starRating = mapGoogleStarRating(review.starRating);
     if (!starRating || !review.name) return;
 
-    const existing = await this.prisma.googleReview.findUnique({
+    const existing = await db.googleReview.findUnique({
       where: { googleReviewName: review.name },
     });
 
@@ -538,7 +531,7 @@ export class GoogleReviewsService {
     };
 
     if (existing) {
-      await this.prisma.googleReview.update({
+      await db.googleReview.update({
         where: { id: existing.id },
         data: {
           ...baseData,
@@ -566,7 +559,7 @@ export class GoogleReviewsService {
       processingState = GoogleReviewProcessingState.queued_post;
     }
 
-    const created = await this.prisma.googleReview.create({
+    const created = await db.googleReview.create({
       data: {
         businessId: business.id,
         googleReviewName: review.name,
@@ -587,7 +580,7 @@ export class GoogleReviewsService {
           reviewComment: created.comment,
           reviewerDisplayName: created.reviewerDisplayName,
         });
-        await this.prisma.googleReview.update({
+        await db.googleReview.update({
           where: { id: created.id },
           data: { draftReplyText: draft },
         });
@@ -597,10 +590,11 @@ export class GoogleReviewsService {
             { ...created, draftReplyText: draft },
             draft,
             GoogleReviewReplyMode.auto,
+            db,
           );
         }
       } catch (error) {
-        await this.prisma.googleReview.update({
+        await db.googleReview.update({
           where: { id: created.id },
           data: { processingState: GoogleReviewProcessingState.failed },
         });
@@ -609,13 +603,16 @@ export class GoogleReviewsService {
     }
   }
 
-  private async processPendingRepliesForBusiness(businessId: string): Promise<void> {
-    const business = await this.prisma.business.findUnique({
+  private async processPendingRepliesForBusiness(
+    businessId: string,
+    db: GoogleReviewsDb = this.prisma,
+  ): Promise<void> {
+    const business = await db.business.findUnique({
       where: { id: businessId },
     });
     if (!business?.googleAutoReplyEnabled) return;
 
-    const queued = await this.prisma.googleReview.findMany({
+    const queued = await db.googleReview.findMany({
       where: {
         businessId,
         processingState: GoogleReviewProcessingState.queued_post,
@@ -625,7 +622,7 @@ export class GoogleReviewsService {
       const text = review.draftReplyText?.trim();
       if (!text) continue;
       try {
-        await this.postReply(businessId, review, text, GoogleReviewReplyMode.auto);
+        await this.postReply(businessId, review, text, GoogleReviewReplyMode.auto, db);
       } catch {
         // postReply records failure
       }
@@ -641,9 +638,10 @@ export class GoogleReviewsService {
     },
     replyText: string,
     mode: GoogleReviewReplyMode,
+    db: GoogleReviewsDb = this.prisma,
   ): Promise<void> {
-    const accessToken = await this.getValidAccessToken(businessId);
-    await this.prisma.googleReview.update({
+    const accessToken = await this.getValidAccessToken(businessId, db);
+    await db.googleReview.update({
       where: { id: review.id },
       data: { processingState: GoogleReviewProcessingState.queued_post },
     });
@@ -651,7 +649,7 @@ export class GoogleReviewsService {
     try {
       const live = await this.googleApi.getReview(accessToken, review.googleReviewName);
       if (live.reviewReply?.comment?.trim()) {
-        await this.prisma.googleReview.update({
+        await db.googleReview.update({
           where: { id: review.id },
           data: {
             processingState: GoogleReviewProcessingState.skipped,
@@ -667,8 +665,8 @@ export class GoogleReviewsService {
         replyText,
       );
 
-      await this.prisma.$transaction([
-        this.prisma.googleReview.update({
+      await this.runDbTransaction(db, async (client) => {
+        await client.googleReview.update({
           where: { id: review.id },
           data: {
             processingState: GoogleReviewProcessingState.posted,
@@ -678,8 +676,8 @@ export class GoogleReviewsService {
               : new Date(),
             draftReplyText: replyText,
           },
-        }),
-        this.prisma.googleReviewReplyAttempt.create({
+        });
+        await client.googleReviewReplyAttempt.create({
           data: {
             reviewId: review.id,
             mode,
@@ -687,18 +685,18 @@ export class GoogleReviewsService {
             postedText: replyText,
             success: true,
           },
-        }),
-      ]);
+        });
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Reply failed';
       const code =
         error instanceof GoogleApiError ? String(error.status) : 'unknown';
-      await this.prisma.$transaction([
-        this.prisma.googleReview.update({
+      await this.runDbTransaction(db, async (client) => {
+        await client.googleReview.update({
           where: { id: review.id },
           data: { processingState: GoogleReviewProcessingState.failed },
-        }),
-        this.prisma.googleReviewReplyAttempt.create({
+        });
+        await client.googleReviewReplyAttempt.create({
           data: {
             reviewId: review.id,
             mode,
@@ -708,30 +706,37 @@ export class GoogleReviewsService {
             errorCode: code,
             errorMessage: message.slice(0, 500),
           },
-        }),
-      ]);
+        });
+      });
       if (error instanceof GoogleApiError && error.isAuthError()) {
-        await this.handleAuthFailure(businessId, message);
+        await this.handleAuthFailure(businessId, message, db);
       }
       throw error;
     }
   }
 
-  private async handleAuthFailure(businessId: string, message: string): Promise<void> {
-    await this.prisma.$transaction([
-      this.prisma.googleBusinessConnection.updateMany({
+  private async handleAuthFailure(
+    businessId: string,
+    message: string,
+    db: GoogleReviewsDb = this.prisma,
+  ): Promise<void> {
+    await this.runDbTransaction(db, async (client) => {
+      await client.googleBusinessConnection.updateMany({
         where: { businessId },
         data: { lastError: message.slice(0, 500) },
-      }),
-      this.prisma.business.update({
+      });
+      await client.business.update({
         where: { id: businessId },
         data: { googleAutoReplyEnabled: false },
-      }),
-    ]);
+      });
+    });
   }
 
-  private async getValidAccessToken(businessId: string): Promise<string> {
-    const connection = await this.requireConnection(businessId);
+  private async getValidAccessToken(
+    businessId: string,
+    db: GoogleReviewsDb = this.prisma,
+  ): Promise<string> {
+    const connection = await this.requireConnection(businessId, db);
     const now = Date.now();
     if (
       connection.accessTokenEncrypted &&
@@ -748,12 +753,13 @@ export class GoogleReviewsService {
       await this.handleAuthFailure(
         businessId,
         error instanceof Error ? error.message : 'Token refresh failed',
+        db,
       );
       throw error;
     }
     const encryptedAccess = this.cipher.encrypt(tokens.access_token);
     const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);
-    await this.prisma.googleBusinessConnection.update({
+    await db.googleBusinessConnection.update({
       where: { businessId },
       data: {
         accessTokenEncrypted: encryptedAccess,
@@ -788,29 +794,40 @@ export class GoogleReviewsService {
     };
   }
 
-  private async requireBusiness(businessId: string) {
-    const business = await this.prisma.business.findUnique({
+  private async requireBusiness(businessId: string, db: GoogleReviewsDb = this.prisma) {
+    const business = await db.business.findUnique({
       where: { id: businessId },
     });
     if (!business) throw new NotFoundException('Business not found');
     return business;
   }
 
-  private async assertAllowed(businessId: string) {
-    const business = await this.requireBusiness(businessId);
+  private async assertAllowed(businessId: string, db: GoogleReviewsDb = this.prisma) {
+    const business = await this.requireBusiness(businessId, db);
     if (!business.googleAutoReplyAllowed) {
       throw new ForbiddenException('Google auto-reply is not enabled for this business.');
     }
     return business;
   }
 
-  private async requireConnection(businessId: string) {
-    const connection = await this.prisma.googleBusinessConnection.findUnique({
+  private async requireConnection(businessId: string, db: GoogleReviewsDb = this.prisma) {
+    const connection = await db.googleBusinessConnection.findUnique({
       where: { businessId },
     });
     if (!connection || connection.disconnectedAt) {
       throw new BadRequestException('Connect Google Business first.');
     }
     return connection;
+  }
+
+  private async runDbTransaction(
+    db: GoogleReviewsDb,
+    work: (client: GoogleReviewsDb) => Promise<void>,
+  ): Promise<void> {
+    if (db === this.prisma) {
+      await this.prisma.$transaction(async (tx) => work(tx));
+      return;
+    }
+    await work(db);
   }
 }

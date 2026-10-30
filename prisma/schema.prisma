@@ -219,7 +219,9 @@ enum FeedbackSource {
 
 model FeedbackSubmission {
   id         String         @id @default(uuid())
-  businessId String
+  clientSubmissionId    String?
+  submissionFingerprint String?
+  businessId            String
   business   Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
   rating     Int
   keywords   String[]
@@ -230,6 +232,7 @@ model FeedbackSubmission {
   createdAt  DateTime       @default(now())
 
   @@index([businessId, createdAt(sort: Desc)])
+  @@unique([businessId, clientSubmissionId])
   @@map("feedback_submissions")
 }
 

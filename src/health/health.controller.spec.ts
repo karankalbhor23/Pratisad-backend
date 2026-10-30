@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { HealthController } from './health.controller';
+import { PrismaService } from '../prisma/prisma.service';
 
 describe('HealthController', () => {
   let controller: HealthController;
@@ -7,6 +8,9 @@ describe('HealthController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [HealthController],
+      providers: [
+        { provide: PrismaService, useValue: { $queryRaw: jest.fn() } },
+      ],
     }).compile();
 
     controller = module.get<HealthController>(HealthController);
@@ -16,8 +20,8 @@ describe('HealthController', () => {
     expect(controller).toBeDefined();
   });
 
-  it('should return health status ok and service name', () => {
-    const result = controller.check();
+  it('should return health status ok and service name', async () => {
+    const result = await controller.check();
     expect(result).toEqual({
       status: 'ok',
       service: 'pratisad-api',

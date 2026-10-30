@@ -25,6 +25,11 @@ services:
     ports:
       # NPM forwards api.pratisad.scaleopal.com → host:4002
       - "127.0.0.1:4002:4000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     networks:
       - stack_scaleopal_network
     logging:

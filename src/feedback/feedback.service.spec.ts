@@ -48,4 +48,22 @@ describe('FeedbackService', () => {
     ).resolves.toEqual({ id: 'fb-1' });
     expect(feedbackRecord.recordSubmission).toHaveBeenCalled();
   });
+
+  it('canonicalizes valid keyword casing and rejects duplicates', async () => {
+    await service.submitPrivate({
+      businessSlug: 'test',
+      rating: 2,
+      keywords: ['poor experience'],
+    });
+    expect(feedbackRecord.recordSubmission).toHaveBeenCalledWith(
+      expect.objectContaining({ keywords: ['Poor experience'] }),
+    );
+    await expect(
+      service.submitPrivate({
+        businessSlug: 'test',
+        rating: 2,
+        keywords: ['Poor experience', 'poor experience'],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
 });

@@ -14,11 +14,11 @@ import {
   Body,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { GoogleReviewProcessingState } from '@prisma/client';
 import { asClerkAuthedRequest } from '../auth/authed-request.types';
 import { BusinessUserGuard } from '../auth/business-user.guard';
 import {
   ApproveGoogleReviewDto,
+  ListGoogleReviewsQueryDto,
   SetGoogleLocationDto,
   UpdateGoogleAutoReplySettingsDto,
 } from './dto/portal-google-reviews.dto';
@@ -90,17 +90,10 @@ export class GoogleReviewsPortalController {
   @UseGuards(BusinessUserGuard)
   listReviews(
     @Req() request: Request,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
-    @Query('state') state?: string,
+    @Query() query: ListGoogleReviewsQueryDto,
   ) {
     const businessId = asClerkAuthedRequest(request).businessId!;
-    const parsedState = state as GoogleReviewProcessingState | undefined;
-    return this.googleReviews.listReviews(businessId, {
-      page: page ? Number(page) : undefined,
-      limit: limit ? Number(limit) : undefined,
-      state: parsedState,
-    });
+    return this.googleReviews.listReviews(businessId, query);
   }
 
   @Post(':id/approve')
@@ -112,7 +105,11 @@ export class GoogleReviewsPortalController {
     @Body() body: ApproveGoogleReviewDto,
   ) {
     const businessId = asClerkAuthedRequest(request).businessId!;
-    return this.googleReviews.approveReview(businessId, id, body.replyText ?? '');
+    return this.googleReviews.approveReview(
+      businessId,
+      id,
+      body.replyText ?? '',
+    );
   }
 
   @Post(':id/regenerate-draft')
